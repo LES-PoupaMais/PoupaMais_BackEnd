@@ -1,0 +1,48 @@
+# Ambiente local do PoupaMais (backend)
+#   docker compose up -d db mailpit   -> desenvolvimento
+#   docker compose up -d db-test      -> banco descartável dos testes de integração
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: poupamais
+      POSTGRES_USER: ${DB_USER:-poupamais}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-poupamais}
+    ports:
+      - "5432:5432"
+    volumes:
+      - dados-db:/var/lib/postgresql/data
+      # Só roda com o volume vazio: mudou o DDL? docker compose down -v
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-poupamais} -d poupamais"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Banco dos testes de integração (POUPAMAIS_TEST_DB_URL); sem volume: some no down
+  db-test:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: poupamais_test
+      POSTGRES_USER: poupamais
+      POSTGRES_PASSWORD: poupamais
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U poupamais -d poupamais_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Captura os e-mails enviados em desenvolvimento (interface em http://localhost:8025)
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  dados-db:
