@@ -1,0 +1,4 @@
+descricao;tipo;mes;ano;valor;categorias
+Salário mensal;RECEITA;8;2026;8500,00;Salário
+iFood — pedidos do mês;DESPESA;8;2026;420,00;Alimentação|Lazer
+Conta de luz;DESPESA;8;2026;189.90;Moradia

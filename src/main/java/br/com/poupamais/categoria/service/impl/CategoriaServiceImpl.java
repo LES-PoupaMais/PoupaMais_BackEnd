@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -135,6 +136,17 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
         .ifPresent(c -> {
           throw new RegraNegocioException(MSG_INATIVA.formatted(c.getDescricao()));
         });
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<CategoriaResumo> buscarPorDescricao(Long idUsuario, String descricao) {
+    if (descricao == null || descricao.isBlank()) {
+      return Optional.empty();
+    }
+    return repository
+        .findByIdUsuarioAndDescricaoIgnoreCase(idUsuario, descricao.strip())
+        .map(CategoriaServiceImpl::resumo);
   }
 
   @Override
