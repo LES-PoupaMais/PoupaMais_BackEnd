@@ -1,5 +1,6 @@
 package br.com.poupamais.shared.exception;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -73,6 +74,13 @@ class GlobalExceptionHandlerTest {
   }
 
   @Test
+  void erroDeAutenticacaoRetorna401() throws Exception {
+    mvc.perform(get("/teste/401"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.mensagem").value("E-mail ou senha inválidos"));
+  }
+
+  @Test
   void arquivoGrandeRetorna422() throws Exception {
     mvc.perform(get("/teste/upload"))
         .andExpect(status().isUnprocessableContent())
@@ -89,6 +97,22 @@ class GlobalExceptionHandlerTest {
                 .value("Ocorreu um erro inesperado. Tente novamente em instantes."));
   }
 
+  @Test
+  void rotaInexistenteRetorna404NoPadrao() throws Exception {
+    mvc.perform(get("/rota/que/nao/existe"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.mensagem").value("Recurso não encontrado"));
+  }
+
+  @Test
+  void metodoNaoSuportadoRetorna405NoPadrao() throws Exception {
+    mvc.perform(delete("/teste"))
+        .andExpect(status().isMethodNotAllowed())
+        .andExpect(jsonPath("$.status").value(405))
+        .andExpect(jsonPath("$.mensagem").value("Método não permitido para este recurso."));
+  }
+
   record Pedido(@NotBlank(message = "O nome é obrigatório") String nome) {}
 
   @RestController
@@ -100,6 +124,7 @@ class GlobalExceptionHandlerTest {
     @GetMapping("/teste/{caso}")
     void lancar(@PathVariable String caso) {
       switch (caso) {
+        case "401" -> throw new ErroAutenticacaoException("E-mail ou senha inválidos");
         case "404" -> throw new RecursoNaoEncontradoException("Lançamento não encontrado");
         case "409" -> throw new ConflitoException("E-mail já cadastrado");
         case "422" -> throw new RegraNegocioException("Lançamento deletado não pode ser editado");

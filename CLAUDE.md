@@ -9,11 +9,18 @@ Este repositório é **só a API**. O front (Next.js) fica em `LES-PoupaMais/Pou
 Documentação de origem (fora do repo, na pasta do workspace `../`): `../Documentação/DVP_PoupaMais_v1.md` (requisitos, UCs, RNs),
 `../Banco de Dados/poupamais_modelo_fisico.sql` (DDL oficial), `../Gestão (Trello)/` (backlog exportado).
 
-## Estado atual (05/11/2026)
+## Estado atual (12/11/2026)
 
-- **Fundação pronta (06/11/2026):** Spring Boot 4.1.2, Spring Modulith 2.1.2, pacotes dos 7 módulos (`package-info.java`), `shared`
-  (exceções + `GlobalExceptionHandler`, `Periodo`, `SecurityConfiguration` provisória sem JWT, `WebConfiguration`), `docker-compose.yml`
-  (db, db-test, mailpit), JaCoCo e Spotless. Ainda **não há** entidades nem endpoints de negócio.
+- **Fonte da verdade:** este `CLAUDE.md`. Os `.md` do DVP em `../Documentação/md/` são uma versão anterior; se divergirem, vale este arquivo.
+- **Pronto na `development`:**
+  - Fundação: Spring Boot 4.1.2, Spring Modulith 2.1.2, `docker-compose.yml` (db, db-test, mailpit), `docker/init.sql` (6 tabelas), JaCoCo, Spotless.
+  - `shared`: exceções + `GlobalExceptionHandler`, `Periodo`, `WebConfiguration` e **segurança JWT completa** (`shared.security`).
+  - `notificacao`: `EmailFacade` (e-mail de recuperação de senha via SMTP).
+  - `categoria`: CRUD completo + `CategoriaFacade`.
+- **`usuario`:** auth, perfil, foto, troca/recuperação de senha, exclusão de conta; `SenhaAlteradaConsulta` implementada
+  (filtro recusa token de usuário excluído) e Swagger por `SWAGGER_HABILITADO`.
+- **`lancamento`:** CRUD, filtros (Specifications), status/lixeira e `LancamentoFacade` (ver "APIs públicas já prontas").
+- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016), `dashboard`, `arquivo`, correção da rota inexistente (500 → 404) e deploy.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
   1. **Configurar Infraestrutura Local** — `docker-compose.yml` + `init.sql` (Postgres sobe com o schema pronto).
@@ -82,8 +89,9 @@ A exclusão de conta não precisa chamar os outros módulos: o banco apaga tudo 
 br.com.poupamais
 ├── PoupaMaisApplication.java
 ├── shared/                                # package-info.java com @ApplicationModule(type = OPEN)
-│   ├── config/        OpenApiConfig, WebConfiguration (CORS), JacksonConfig
-│   ├── security/      SecurityConfiguration, JwtService, JwtAuthenticationFilter, UsuarioLogado
+│   ├── config/        WebConfiguration (CORS)  (+ OpenApiConfig/JacksonConfig se precisar)
+│   ├── security/      SecurityConfiguration, JwtService, JwtAuthenticationFilter, ErroAutenticacaoEntryPoint,
+│   │                  UsuarioLogado, SenhaAlteradaConsulta
 │   ├── exception/     RegraNegocioException, RecursoNaoEncontradoException, ConflitoException,
 │   │                  ErroAutenticacaoException, ErroResponse, GlobalExceptionHandler
 │   └── domain/        Periodo (value object mês/ano), NomeMes
@@ -106,7 +114,8 @@ br.com.poupamais
 │       └── LancamentoSpecifications.java
 ├── usuario/   (api/: AuthResource, PerfilResource, PrivacidadeResource · service/: AuthService, PerfilService,
 │               RecuperacaoSenhaService, PrivacidadeService · model/: Usuario, FotoPerfil, TokenRecuperacaoSenha)
-├── notificacao/ (EmailFacade · service/impl/SmtpEmailService · templates/ do e-mail)
+├── notificacao/ (EmailFacade, EnvioEmailException · service/impl/SmtpEmailService ·
+│                 templates em src/main/resources/templates/email/)
 ├── categoria/ (CategoriaFacade, CategoriaResumo · api/ service/ model/)
 ├── dashboard/ (api/ service/ · sem model: só lê pelos facades)
 └── arquivo/   (api/ · importacao/ · exportacao/)
@@ -121,8 +130,61 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 
 - `Lancamento.idUsuario` é `Long` (não `@ManyToOne Usuario`); o mesmo vale para `Categoria.idUsuario`.
 - `CategoriaLancamento` (dentro de `lancamento`) guarda `idCategoria` (`Long`) e `idUsuario`. Para mostrar os nomes,
-  o mapper chama `CategoriaFacade.buscarPorIds(ids)` **uma vez por listagem** (sem N+1).
-- Validar que as categorias existem, são do usuário e estão ativas: `CategoriaFacade.validarAtivasDoUsuario(ids)`.
+  o mapper chama `CategoriaFacade.buscarPorIds(idUsuario, ids)` **uma vez por listagem** (sem N+1).
+- Validar que as categorias existem, são do usuário e estão ativas: `CategoriaFacade.validarAtivasDoUsuario(idUsuario, ids)`.
+
+### APIs públicas já prontas (use; não recrie)
+
+| Onde | API | Comportamento |
+| --- | --- | --- |
+| `shared.security.UsuarioLogado` | `static Long id()` | Id do usuário do token. Sem usuário → `ErroAutenticacaoException` (401). Única fonte do id (RN005). |
+| `shared.security.JwtService` | `TokenGerado gerar(Long idUsuario)` → `(String token, Instant expiraEm)`; `Optional<TokenValido> validar(String token)` → `(idUsuario, emitidoEm, expiraEm)` | HS256, subject = id, `iat`/`exp` em segundos. `validar` nunca lança nem loga. App não sobe com `JWT_SECRET` < 32 bytes ou `JWT_EXPIRACAO_MIN` ≤ 0. |
+| `shared.security.SenhaAlteradaConsulta` | `Optional<SituacaoUsuario> situacao(Long idUsuario)`; record `SituacaoUsuario(Instant senhaAlteradaEm)` (`null` = nunca trocou) | **Implementada no `usuario` (`SessaoUsuarioConsulta`, 1 consulta JPQL por requisição autenticada).** Vazio = usuário não existe mais → o filtro **recusa** o token. Também recusa `iat` < `senha_alterada_em` (comparação em segundos). Sem bean (ex.: `@WebMvcTest` de outro módulo) o filtro não checa. |
+| `SecurityConfiguration` | propriedade `poupamais.swagger-habilitado` (`SWAGGER_HABILITADO`, padrão `true`) | `false` desliga o springdoc (`springdoc.api-docs.enabled`/`swagger-ui.enabled`) e tira as rotas do Swagger da lista pública (passam a exigir token). |
+| `SecurityConfiguration` | bean `PasswordEncoder` (BCrypt) | Injete nos services; nunca instancie outro. |
+| `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401 | Mensagens em português prontas para o usuário. |
+| `notificacao.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
+| `lancamento.LancamentoFacade` (branch `feat/lancamento`) | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records `LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`; enums `TipoLancamento`, `StatusLancamento` | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
+| `categoria.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. |
+
+### API pública do módulo `lancamento` (✅ implementada na `feat/lancamento`; `dashboard`, `arquivo` e `usuario` usam exatamente isto)
+
+Na raiz de `br.com.poupamais.lancamento`:
+
+- `enum TipoLancamento { RECEITA, DESPESA }` e `enum StatusLancamento { ATIVO, INATIVO, DELETADO }` (com `podeIrPara(novo)`).
+- `record LancamentoResumo(Long id, String descricao, TipoLancamento tipo, int mes, int ano, BigDecimal valor, StatusLancamento status,
+  List<CategoriaResumo> categorias, LocalDate dataCadastro, LocalDate dataAtualizacao)` — `categorias` ordenadas por **id crescente**
+  (a primeira é a "primeira categoria" da RN009).
+- `record FiltroLancamento(String descricao, Integer mes, Integer ano, TipoLancamento tipo, StatusLancamento status, Long categoriaId)` —
+  mesma semântica dos parâmetros do `GET /api/lancamentos` (sem `status` = ATIVO + INATIVO; nunca DELETADO sem pedir).
+- `record NovoLancamento(String descricao, TipoLancamento tipo, Integer mes, Integer ano, BigDecimal valor, List<Long> categoriaIds)`.
+- `interface LancamentoFacade`:
+  - `LancamentoResumo criar(Long idUsuario, NovoLancamento novo)` — mesma validação do cadastro manual (`LancamentoValidator`, RN001 +
+    `validarAtivasDoUsuario`); erro → `RegraNegocioException`/`RecursoNaoEncontradoException` com mensagem pronta (a importação usa como "motivo").
+    `@Transactional` próprio: cada chamada é uma transação (RN007).
+  - `List<LancamentoResumo> listar(Long idUsuario, FiltroLancamento filtro)` — mesmas Specifications e ordenação da listagem (exportação, RN013).
+  - `List<LancamentoResumo> listarAtivos(Long idUsuario, Collection<Periodo> periodos)` — só ATIVO dos meses pedidos (dashboard, RN003/RN008).
+  - `List<LancamentoResumo> listarTodos(Long idUsuario)` — todos os status (exportação de dados LGPD, RF016).
+
+### Decisões do módulo `lancamento` (tomadas na implementação)
+
+- `FiltroLancamento.vazio()` = sem filtros. `listar` com `categoriaId` que não é do usuário → `404` "Categoria não encontrada" (API e facade).
+- `listarAtivos` com lista de períodos vazia/nula → lista vazia (não consulta). Todas as listagens usam a ordenação ano/mês/id desc.
+- `LancamentoValidator.validar(NovoLancamento)` devolve os dados **normalizados**: descrição com `strip()`, valor `setScale(2, HALF_UP)`
+  (arredondado ≤ 0 → 422; máximo `99999999999999.99`, limite do `numeric(16,2)`), `categoriaIds` sem nulos e sem repetidos (ordem preservada).
+  Mensagens (422): "A descrição é obrigatória", "A descrição deve ter no máximo 100 caracteres", "O tipo é obrigatório (RECEITA ou DESPESA)",
+  "O mês deve estar entre 1 e 12", "O ano deve estar entre 2000 e 2100", "O valor é obrigatório", "O valor deve ser maior que zero",
+  "O valor excede o máximo permitido", "Informe pelo menos uma categoria". Na API o DTO já barra antes com `400` (`@Digits(14,2)` no valor).
+- `StatusLancamento.podeIrPara(mesmo)` = `false`. Mas o `PATCH /status` com o status que o lançamento **já tem** (ATIVO/INATIVO) é
+  idempotente: `200` sem mexer em `dataAtualizacao`. `PATCH` com `DELETADO` → `422` "Informe o status ATIVO ou INATIVO".
+  Mensagens: "Lançamento excluído não pode ser editado. Restaure-o antes.", "O lançamento já está excluído",
+  "Só é possível restaurar um lançamento excluído", "Não é possível alterar o status de X para Y", "Lançamento não encontrado".
+- **Edição:** só as categorias **novas** precisam estar ativas; uma categoria que já estava no lançamento e foi inativada depois pode continuar.
+- Os nomes das categorias são montados no `service` (`LancamentoResumoConversor`, 1 chamada a `CategoriaFacade.buscarPorIds` por lista),
+  porque a facade também devolve `LancamentoResumo`; o `LancamentoMapper` da `api` só converte `LancamentoResumo` → DTO.
+  A resposta traz `categorias: [{id, descricao}]` (sem `ativa`). O service da API devolve `LancamentoResumo`, não a entidade.
+- Repository com `@EntityGraph("categorias")` no `findAll(spec, sort)` e no `findByIdAndIdUsuario` (sem N+1). Filtro por categoria usa
+  subconsulta `exists` (não duplica linhas). `descricao` escapa `%` e `_`.
 
 ## Design patterns (onde e por quê)
 
@@ -208,8 +270,13 @@ Fora de escopo (requisitos inversos): app nativo (RNI001), integração bancári
 - Proteção de dados (RNF019): nunca logar senha, token ou valor financeiro; mensagens de erro sem detalhes internos.
 - RNF006: **não** existe detecção de lançamento duplicado (dados iguais são válidos). A única proteção é contra reenvio técnico, feita no front.
 - Senha: BCrypt, mínimo 6 caracteres (regra do protótipo). Nunca retornar `senha` em DTO.
+- **Sessão de usuário excluído (feito):** `SenhaAlteradaConsulta.situacao(id)` devolve vazio quando o usuário não existe mais e o
+  `JwtAuthenticationFilter` recusa o token (rota privada → 401). Com o módulo `usuario` presente, o bean sempre existe.
+- **Swagger:** liberado só quando `SWAGGER_HABILITADO=true` (padrão `true` em dev, `false` em produção). Com `false`, o springdoc fica
+  desligado (`springdoc.api-docs.enabled` e `springdoc.swagger-ui.enabled`) e as rotas do Swagger saem da lista pública.
 - Segredo do JWT e credenciais via variável de ambiente (`JWT_SECRET`, `JWT_EXPIRACAO_MIN`, `DB_URL`, `DB_USER`, `DB_PASSWORD`,
-  `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`, `FRONT_URL` (monta o link de redefinição)), com default só para dev.
+  `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`, `FRONT_URL` (monta o link de redefinição), `SWAGGER_HABILITADO`),
+  com default só para dev.
 - CORS: o navegador **não** chama esta API (o Next faz as chamadas pelo servidor). Mantenha o `WebConfiguration` com `CORS_ORIGINS`
   só para Swagger e testes locais; em produção, restrinja à URL do front.
 
@@ -223,6 +290,27 @@ Prefixo `/api`. JSON em camelCase. Header `Authorization: Bearer <token>`.
 - `POST /api/auth/login` `{email, senha}` → `200` `{token, expiraEm, usuario: {id, nome, email}}` · inválido → `401` (RF010)
 - `POST /api/auth/recuperar-senha` `{email}` → `202` **sempre** (RF012, RN014)
 - `POST /api/auth/redefinir-senha` `{token, novaSenha}` → `204` · token inválido, expirado ou usado → `422`
+
+Detalhes do `usuario` (decididos):
+- Cadastro: `nome` trim, 1–150; `email` trim + minúsculas, formato válido, ≤ 100; `senha` 6–72 caracteres (limite do BCrypt);
+  `aceiteTermos` deve ser `true` (`false`/ausente → `400` com `erros[]` no campo `aceiteTermos`). Cria as 11 categorias padrão
+  (`CategoriaFacade.criarPadroes`) **na mesma transação**. Corrida no e-mail único → `409`.
+- Login: e-mail comparado em minúsculas; e-mail inexistente ou senha errada → `401` com a **mesma** mensagem
+  ("E-mail ou senha inválidos"). `expiraEm` vem do `JwtService.gerar`.
+- Recuperação: link = `${poupamais.front-url}/redefinir-senha?token=<token>`; token = 32 bytes aleatórios (`SecureRandom`) em Base64URL;
+  grava só o SHA-256 (hex); 30 min; uso único; novo pedido marca os anteriores como usados. Falha de e-mail não muda a resposta (`202`).
+- Redefinir/trocar senha: grava `senha_alterada_em = now()` (truncado em segundos). A troca devolve token novo, emitido **depois** dessa data.
+- Foto: tipo detectado pelos **bytes** (assinaturas JPEG `FF D8 FF`, PNG `89 50 4E 47`, WEBP `RIFF....WEBP`), ≤ 2 MB; senão `422`.
+- Decididos na implementação (feat/usuario):
+  - Mensagens: e-mail duplicado "Este e-mail já está cadastrado"; token "Link de redefinição inválido ou expirado. Solicite um novo.";
+    troca "A senha atual está incorreta" / "A nova senha deve ser diferente da atual"; exclusão "Senha incorreta";
+    foto "A foto deve ser uma imagem JPG, PNG ou WEBP" / "A foto deve ter no máximo 2 MB" / sem foto "Foto de perfil não encontrada".
+  - `recuperar-senha` com e-mail vazio ou em formato inválido → `400` (validação de formato, não revela nada); qualquer e-mail
+    bem formado → `202` sem corpo. Falha de SMTP só gera `warn` sem e-mail/link/token; o token fica gravado (o usuário pede de novo).
+  - Redefinir: valida a nova senha **antes** de gastar o token; ao redefinir, marca como usados todos os tokens pendentes do usuário.
+  - `PUT /usuarios/me/foto` sem o campo `foto` → `422` (tipo inválido). `DELETE` da foto sem foto → `204` (idempotente).
+  - Token válido de usuário que sumiu entre o filtro e o service → `401` (mesma mensagem de sessão expirada).
+  - `PUT /usuarios/me` ignora `email` no body (e-mail não editável).
 
 **Perfil e privacidade** (módulo `usuario`, RF013–RF017)
 
@@ -245,10 +333,18 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
 - `PUT /api/categorias/{id}` `{descricao}`
 - `PATCH /api/categorias/{id}/status` `{ativa: boolean}`
 - `DELETE /api/categorias/{id}` → `204`; se tiver lançamentos → `422` "Categoria vinculada a lançamentos, apenas inative"
+- Ordenação do `GET`: alfabética sem diferenciar maiúsculas; sem filtro, **ativas primeiro**. `PUT`/`PATCH` → `200 {id, descricao, ativa}`.
+  Descrição: trim, obrigatória, ≤ 255 (`400` no DTO; `422` se chegar ao service); duplicada no `PUT` → `409`; de outro usuário → `404`.
+- `CategoriaFacade` (implementada por `CategoriaServiceImpl`): `buscarPorIds(idUsuario, ids)` (ignora ids alheios/inexistentes, 1 consulta),
+  `validarAtivasDoUsuario(idUsuario, ids)` → **`404` "Categoria não encontrada"** se alguma não existir ou for de outro usuário (RN005)
+  e **`422`** se alguma estiver inativa, `buscarOuCriar(idUsuario, descricao)` (não reativa inativa), `criarPadroes(idUsuario)`.
+- O bloqueio do `DELETE` consulta `poupamais.categorias_lancamentos` por **query nativa** no `CategoriaRepository`
+  (o módulo `categoria` não pode depender de `lancamento`). Corrida no índice único `lower(descricao)` → `409`.
 
 **Lançamentos** (módulo `lancamento`, RF001–RF005, RF008 / UC001, UC002, UC004, UC010)
 
-- `GET /api/lancamentos?descricao=&mes=&ano=&tipo=&status=&categoriaId=` → lista ordenada por ano/mês desc.
+- `GET /api/lancamentos?descricao=&mes=&ano=&tipo=&status=&categoriaId=` → lista ordenada por **ano desc, mês desc, id desc**.
+  `descricao` = contém, sem diferenciar maiúsculas (`lower(...) like`). Sem paginação. Categoria/lançamento de outro usuário → `404`.
   Sem `status` = ATIVO + INATIVO (**nunca** DELETADO). `status=ATIVO|INATIVO|DELETADO` filtra só aquele (DELETADO = "Lixeira").
 - `GET /api/lancamentos/{id}`
 - `POST /api/lancamentos` `{descricao, tipo, mes, ano, valor, categoriaIds: [..]}` → `201`
@@ -256,6 +352,9 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
 - `PATCH /api/lancamentos/{id}/status` `{status: "ATIVO"|"INATIVO"}` → atualiza `dataAtualizacao` · se DELETADO → `422`
 - `DELETE /api/lancamentos/{id}` → `204`; **não apaga**: muda o status para DELETADO
 - `POST /api/lancamentos/{id}/restaurar` → `200` (lançamento com status INATIVO) · se não estiver DELETADO → `422`
+- `POST`/`PUT`/`PATCH`/`restaurar` devolvem o lançamento no formato abaixo. `categoriaIds` repetidos são aceitos e gravados uma vez;
+  categoria inativa → `422`; inexistente ou de outro usuário → `404` (vem do `validarAtivasDoUsuario`).
+- `DELETE` de lançamento já DELETADO → `422`. Toda alteração (PUT, status, delete, restaurar) seta `dataAtualizacao = hoje`.
 
 As transições ficam num método da entidade (`Lancamento.alterarStatus(novo)`, que lança `RegraNegocioException`),
 não espalhadas pelo service.
@@ -319,7 +418,8 @@ Response de lançamento:
 }
 ```
 
-400 validação · 401 não autenticado · 404 não encontrado/não pertence ao usuário · 409 duplicidade · 422 regra de negócio · 500 genérico (sem stacktrace).
+400 validação · 401 não autenticado · 404 não encontrado/não pertence ao usuário · 405 método não suportado · 409 duplicidade · 422 regra de negócio · 500 genérico (sem stacktrace).
+Rota inexistente (com token válido) → 404 `"Recurso não encontrado"`; método HTTP não suportado → 405 `"Método não permitido para este recurso."`.
 
 ## Formato CSV (RN012 no DVP)
 
@@ -400,6 +500,33 @@ Skills do repo (`.claude/skills/`), usadas automaticamente pelo Claude quando o 
 | `mudanca-de-regra` (na raiz do workspace) | O pedido contradiz o DVP, o DDL ou o contrato |
 
 Plugins oficiais recomendados (instalar com `/plugin`): `feature-dev`, `pr-review-toolkit`, `commit-commands`, `security-guidance`, `context7` (documentação atualizada de Spring/JPA).
+
+## Plano de entregas e pendências
+
+Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push da branch**, e o PR é aberto e integrado pela equipe.
+
+| # | Entrega | Situação | Inclui (além do contrato) |
+| --- | --- | --- | --- |
+| 1 | Segurança JWT | ✅ na `development` | — |
+| 2 | `notificacao` | ✅ na `development` | — |
+| 3 | `categoria` | ✅ na `development` | — |
+| 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na `development` | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
+| 5 | `lancamento` | ✅ na `development` | `LancamentoFacade` exatamente como definida acima |
+| 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | depois de 4 e 5 | usa `LancamentoFacade.listarTodos` |
+| 7 | `dashboard` | depois de 5 | |
+| 8 | `arquivo` (importação, exportação, template) | depois de 5 | |
+| 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | em andamento (`fix/rota-inexistente-404`) | deve responder `404` no padrão de erro |
+| 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | decidir Flyway × `init.sql` aplicado à mão |
+
+Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
+**Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência
+(linha nova nesta tabela ou na coluna "Inclui" da entrega que vai tratar daquilo), para quem pegar a próxima tarefa. Evite acumular muito.
+
+## Direção futura (ideias a discutir)
+
+Leia `doc/IDEIAS_FUTURAS.md` antes de propor funcionalidade nova: são ideias em aberto, levantadas com base em projetos acadêmicos
+antigos, para a equipe discutir. Primeiro o back é concluído com o escopo atual; se o escopo crescer, os requisitos são reescritos antes.
+Nada disso é para implementar sem decisão da equipe.
 
 ## Pontos em aberto (decidir com a equipe antes de implementar)
 

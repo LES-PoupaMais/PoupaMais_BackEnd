@@ -92,6 +92,7 @@ PR só é integrado (na `development` ou na `main`) com o CI verde.
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM` | SMTP | Mailpit (`localhost:1025`) |
 | `FRONT_URL` | Monta o link de redefinição de senha | `http://localhost:3000` |
 | `CORS_ORIGINS` | Origens liberadas (Swagger/dev) | `http://localhost:3000` |
+| `SWAGGER_HABILITADO` | Liga o Swagger/OpenAPI e libera suas rotas sem token (`false` em produção) | `true` |
 | `POUPAMAIS_TEST_DB_URL` | Liga os testes de integração | — |
 
 ## Fluxo de branches (Gitflow)
