@@ -2,6 +2,7 @@ package br.com.poupamais.categoria;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * API pública do módulo de categorias (RN002, RN005). Todo método recebe o id do usuário dono; quem
@@ -23,6 +24,13 @@ public interface CategoriaFacade {
    * @throws br.com.poupamais.shared.exception.RegraNegocioException (422) se alguma estiver inativa
    */
   void validarAtivasDoUsuario(Long idUsuario, Collection<Long> ids);
+
+  /**
+   * Categoria do usuário com essa descrição (trim, sem diferenciar maiúsculas), sem criar nada.
+   * Usado pela importação CSV para checar categoria inativa e só criar categoria nova em linha
+   * válida (RN002). Descrição nula ou vazia devolve vazio.
+   */
+  Optional<CategoriaResumo> buscarPorDescricao(Long idUsuario, String descricao);
 
   /**
    * Devolve a categoria do usuário com essa descrição (trim, sem diferenciar maiúsculas) ou cria

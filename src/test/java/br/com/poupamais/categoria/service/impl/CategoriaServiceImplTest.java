@@ -238,6 +238,18 @@ class CategoriaServiceImplTest {
   }
 
   @Test
+  void buscarPorDescricaoDeveAcharSemDiferenciarMaiusculasENaoCriar() {
+    when(repository.findByIdUsuarioAndDescricaoIgnoreCase(USUARIO, "lazer"))
+        .thenReturn(Optional.of(categoria(3L, "Lazer", false)));
+
+    assertThat(service.buscarPorDescricao(USUARIO, " lazer "))
+        .contains(new CategoriaResumo(3L, "Lazer", false));
+    assertThat(service.buscarPorDescricao(USUARIO, "  ")).isEmpty();
+    assertThat(service.buscarPorDescricao(USUARIO, null)).isEmpty();
+    verify(repository, never()).saveAndFlush(any());
+  }
+
+  @Test
   void buscarOuCriarDeveCriarQuandoNaoExiste() {
     when(repository.findByIdUsuarioAndDescricaoIgnoreCase(eq(USUARIO), anyString()))
         .thenReturn(Optional.empty());

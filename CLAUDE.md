@@ -20,8 +20,9 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 - **`usuario`:** auth, perfil, foto, troca/recuperação de senha, exclusão de conta; `SenhaAlteradaConsulta` implementada
   (filtro recusa token de usuário excluído) e Swagger por `SWAGGER_HABILITADO`.
 - **`lancamento`:** CRUD, filtros (Specifications), status/lixeira e `LancamentoFacade` (ver "APIs públicas já prontas").
-- **`dashboard`** (✅ na `feat/dashboard`, aguardando PR): `GET /api/dashboard` completo (RN003, RN008–RN010); ver "Decisões do módulo `dashboard`".
-- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016), `arquivo`, e deploy.
+- **`dashboard`** (✅ na `development`): `GET /api/dashboard` completo (RN003, RN008–RN010); ver "Decisões do módulo `dashboard`".
+- **`arquivo`** (✅ na `development`): importação CSV, exportação CSV/XLSX (Strategy + Factory) e template; decisões em "Formato CSV".
+- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016) e deploy.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
   1. **Configurar Infraestrutura Local** — `docker-compose.yml` + Flyway (schema aplicado ao subir a API).
@@ -145,7 +146,7 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 | `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401 | Mensagens em português prontas para o usuário. |
 | `notificacao.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
 | `lancamento.LancamentoFacade` (branch `feat/lancamento`) | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records `LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`; enums `TipoLancamento`, `StatusLancamento` | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
-| `categoria.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. |
+| `categoria.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarPorDescricao(idUsuario, descricao)` (Optional, não cria; adicionada na `feat/arquivo`), `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. |
 
 ### API pública do módulo `lancamento` (✅ implementada na `feat/lancamento`; `dashboard`, `arquivo` e `usuario` usam exatamente isto)
 
@@ -457,6 +458,27 @@ Rota inexistente (com token válido) → 404 `"Recurso não encontrado"`; métod
   cada linha válida é salva na sua própria transação (`LancamentoFacade.criar`), então uma falha não desfaz as outras (RN007).
 - A exportação usa o **mesmo layout** (+ coluna `status`), para que um arquivo exportado possa ser reimportado.
 
+Decisões da implementação (`feat/arquivo`):
+- **Cabeçalho**: localizado pelo nome (trim, sem diferenciar maiúsc.), em qualquer ordem; as 6 colunas são obrigatórias e colunas
+  extras (ex.: `status` do arquivo exportado) são ignoradas. Linhas em branco antes do cabeçalho são puladas.
+- **Recusa do arquivo inteiro (422, nada é gravado)**: vazio/sem campo `arquivo`, > 2 MB, não é texto UTF-8 válido (ou tem byte nulo),
+  cabeçalho ausente/incompleto, nenhuma linha de dados, > 5.000 linhas de dados não vazias.
+- **Linha em branco**: ignorada; **não** conta em `totalLinhas` nem como falha. `totalLinhas` = linhas de dados não vazias.
+  `linha` = número real no arquivo (cabeçalho = 1, linhas em branco contam na numeração).
+- Linha com colunas faltando/sobrando ou aspas quebradas → falha da linha (campos com `;` vão entre aspas duplas; uma linha = um registro).
+- **Valor**: aceita `1234,56`, `1234.56`, `1.234,56`, `1,234.56`, `R$ 10,5`. Com vírgula **e** ponto, o último é o decimal e o outro é milhar;
+  com só um deles, ele é o decimal, salvo se repetido (`1.234.567` = milhar). Máximo 2 casas (`1,234` e `10,555` são falha). Negativo/zero → falha.
+- `tipo`/`mes`/`ano`/`descricao`/categorias são checados **antes** de criar qualquer categoria (checagem prévia da RN001 no `ConversorLinha`);
+  a validação definitiva continua no `LancamentoValidator` via `LancamentoFacade.criar`. Categorias repetidas na linha (ignorando maiúsc.) contam uma vez.
+- **Categoria inativa** citada → falha da linha "A categoria "X" está inativa e não pode ser usada", sem criar as outras categorias novas da linha.
+  Categoria nova (RN002) só é criada (`buscarOuCriar`) depois que a linha passou em tudo isso; `categoriasCriadas` lista as descrições criadas.
+  Raro: se `criar` ainda recusar a linha depois disso, a categoria criada fica (vazia).
+- Erro inesperado numa linha → falha com "Não foi possível salvar esta linha. Tente novamente." (só o tipo da exceção vai para o log).
+- **Exportação**: CSV em UTF-8 **com BOM**, `;`, CRLF, valor `8500,00`; XLSX (aba "Lançamentos", cabeçalho em negrito, mês/ano/valor numéricos,
+  valor com formato `0.00`). Nome `lancamentos-AAAA-MM-DD.<formato>` (data de São Paulo). `formato` ausente ou diferente de `csv`/`xlsx` → 400
+  "Formato inválido. Use: csv ou xlsx". Content types: `text/csv;charset=UTF-8` e
+  `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Template baixa como `template.csv` (`text/csv;charset=UTF-8`).
+
 ## Convenções
 
 - Código, classes, endpoints e mensagens em **português** (domínio do projeto); sem acento em identificadores.
@@ -538,11 +560,12 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na `development` | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
 | 5 | `lancamento` | ✅ na `development` | `LancamentoFacade` exatamente como definida acima |
 | 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | depois de 4 e 5 | usa `LancamentoFacade.listarTodos` |
-| 7 | `dashboard` | ✅ na `feat/dashboard`, aguardando PR | — |
-| 8 | `arquivo` (importação, exportação, template) | depois de 5 | |
+| 7 | `dashboard` | ✅ na `development` | — |
+| 8 | `arquivo` (importação, exportação, template) | ✅ na `development` | `CategoriaFacade.buscarPorDescricao` adicionada (categoria inativa e RN002 sem criar antes da hora); decisões em "Formato CSV" |
 | 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | ✅ na `development` | — |
 | 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | schema já resolvido pelo Flyway (aplica `db/migration` ao subir); falta Postgres em nuvem, variáveis e job de imagem |
-| 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `chore/flyway-docker`, aguardando PR | — |
+| 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `development` | — |
+| 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | pendente | avaliar criar categoria + lançamento na mesma transação, ou remover a categoria órfã |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
 **Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência
