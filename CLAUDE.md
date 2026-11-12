@@ -12,7 +12,7 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 ## Estado atual (05/11/2026)
 
 - **Fundação pronta (06/11/2026):** Spring Boot 4.1.2, Spring Modulith 2.1.2, pacotes dos 7 módulos (`package-info.java`), `shared`
-  (exceções + `GlobalExceptionHandler`, `Periodo`, `SecurityConfiguration` provisória sem JWT, `WebConfiguration`), `docker-compose.yml`
+  (exceções + `GlobalExceptionHandler`, `Periodo`, `SecurityConfiguration` (agora em `shared.security`, com JWT), `WebConfiguration`), `docker-compose.yml`
   (db, db-test, mailpit), JaCoCo e Spotless. Ainda **não há** entidades nem endpoints de negócio.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:

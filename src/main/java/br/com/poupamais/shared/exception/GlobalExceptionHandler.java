@@ -55,6 +55,11 @@ public class GlobalExceptionHandler {
     return resposta(HttpStatus.UNPROCESSABLE_ENTITY, new ErroResponse(422, ex.getMessage()));
   }
 
+  @ExceptionHandler(ErroAutenticacaoException.class)
+  public ResponseEntity<ErroResponse> naoAutenticado(ErroAutenticacaoException ex) {
+    return resposta(HttpStatus.UNAUTHORIZED, new ErroResponse(401, ex.getMessage()));
+  }
+
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ErroResponse> inesperado(Exception ex) {
     // Só o tipo e a mensagem técnica no log; nunca dados do usuário (RNF019)
