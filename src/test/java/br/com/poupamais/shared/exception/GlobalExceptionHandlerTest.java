@@ -1,5 +1,6 @@
 package br.com.poupamais.shared.exception;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -94,6 +95,22 @@ class GlobalExceptionHandlerTest {
         .andExpect(
             jsonPath("$.mensagem")
                 .value("Ocorreu um erro inesperado. Tente novamente em instantes."));
+  }
+
+  @Test
+  void rotaInexistenteRetorna404NoPadrao() throws Exception {
+    mvc.perform(get("/rota/que/nao/existe"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.mensagem").value("Recurso não encontrado"));
+  }
+
+  @Test
+  void metodoNaoSuportadoRetorna405NoPadrao() throws Exception {
+    mvc.perform(delete("/teste"))
+        .andExpect(status().isMethodNotAllowed())
+        .andExpect(jsonPath("$.status").value(405))
+        .andExpect(jsonPath("$.mensagem").value("Método não permitido para este recurso."));
   }
 
   record Pedido(@NotBlank(message = "O nome é obrigatório") String nome) {}

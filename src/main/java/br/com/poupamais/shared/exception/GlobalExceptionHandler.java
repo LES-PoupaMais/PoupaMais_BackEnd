@@ -6,10 +6,13 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 /** Converte exceções no {@link ErroResponse}; nenhum controller precisa de try/catch (RNF007). */
 @RestControllerAdvice
@@ -43,6 +46,19 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(RecursoNaoEncontradoException.class)
   public ResponseEntity<ErroResponse> naoEncontrado(RecursoNaoEncontradoException ex) {
     return resposta(HttpStatus.NOT_FOUND, new ErroResponse(404, ex.getMessage()));
+  }
+
+  @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+  public ResponseEntity<ErroResponse> rotaInexistente(Exception ex) {
+    return resposta(HttpStatus.NOT_FOUND, new ErroResponse(404, "Recurso não encontrado"));
+  }
+
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  public ResponseEntity<ErroResponse> metodoNaoSuportado(
+      HttpRequestMethodNotSupportedException ex) {
+    return resposta(
+        HttpStatus.METHOD_NOT_ALLOWED,
+        new ErroResponse(405, "Método não permitido para este recurso."));
   }
 
   @ExceptionHandler(ConflitoException.class)
