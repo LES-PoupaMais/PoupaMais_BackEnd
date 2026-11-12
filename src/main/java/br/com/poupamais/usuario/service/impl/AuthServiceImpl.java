@@ -1,12 +1,12 @@
 package br.com.poupamais.usuario.service.impl;
 
-import br.com.poupamais.categoria.CategoriaFacade;
+import br.com.poupamais.categoria.publico.CategoriaFacade;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.shared.security.JwtService;
-import br.com.poupamais.usuario.model.Usuario;
-import br.com.poupamais.usuario.model.UsuarioRepository;
+import br.com.poupamais.usuario.model.entidades.Usuario;
+import br.com.poupamais.usuario.model.repositories.UsuarioRepository;
 import br.com.poupamais.usuario.service.AuthService;
 import br.com.poupamais.usuario.service.RegrasConta;
 import java.time.Clock;

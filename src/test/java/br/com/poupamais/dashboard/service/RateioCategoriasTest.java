@@ -2,11 +2,11 @@ package br.com.poupamais.dashboard.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import br.com.poupamais.categoria.CategoriaResumo;
-import br.com.poupamais.dashboard.api.dto.DashboardResponse.DespesaCategoria;
-import br.com.poupamais.lancamento.LancamentoResumo;
-import br.com.poupamais.lancamento.StatusLancamento;
-import br.com.poupamais.lancamento.TipoLancamento;
+import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
+import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.DespesaCategoria;
+import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
+import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
+import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;

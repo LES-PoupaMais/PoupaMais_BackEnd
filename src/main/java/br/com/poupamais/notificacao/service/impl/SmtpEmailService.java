@@ -1,7 +1,7 @@
 package br.com.poupamais.notificacao.service.impl;
 
-import br.com.poupamais.notificacao.EmailFacade;
-import br.com.poupamais.notificacao.EnvioEmailException;
+import br.com.poupamais.notificacao.publico.EmailFacade;
+import br.com.poupamais.notificacao.publico.excecoes.EnvioEmailException;
 import jakarta.mail.MessagingException;
 import java.io.IOException;
 import java.io.InputStream;

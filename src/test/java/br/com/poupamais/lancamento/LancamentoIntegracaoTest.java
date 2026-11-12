@@ -6,8 +6,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import br.com.poupamais.categoria.CategoriaFacade;
-import br.com.poupamais.categoria.CategoriaResumo;
+import br.com.poupamais.categoria.publico.CategoriaFacade;
+import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
+import br.com.poupamais.lancamento.publico.LancamentoFacade;
+import br.com.poupamais.lancamento.publico.dto.FiltroLancamento;
+import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
+import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
+import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
+import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.lancamento.service.LancamentoService;
 import br.com.poupamais.shared.domain.Periodo;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;

@@ -7,7 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import br.com.poupamais.categoria.CategoriaFacade;
+import br.com.poupamais.categoria.publico.CategoriaFacade;
 import br.com.poupamais.shared.security.JwtService;
 import java.nio.charset.StandardCharsets;
 import java.util.List;

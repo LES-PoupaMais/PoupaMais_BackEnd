@@ -15,8 +15,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import br.com.poupamais.notificacao.EmailFacade;
-import br.com.poupamais.notificacao.EnvioEmailException;
+import br.com.poupamais.notificacao.publico.EmailFacade;
+import br.com.poupamais.notificacao.publico.excecoes.EnvioEmailException;
 import com.jayway.jsonpath.JsonPath;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;

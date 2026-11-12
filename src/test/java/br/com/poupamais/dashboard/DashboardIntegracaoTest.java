@@ -6,10 +6,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import br.com.poupamais.categoria.CategoriaFacade;
-import br.com.poupamais.lancamento.LancamentoFacade;
-import br.com.poupamais.lancamento.NovoLancamento;
-import br.com.poupamais.lancamento.TipoLancamento;
+import br.com.poupamais.categoria.publico.CategoriaFacade;
+import br.com.poupamais.lancamento.publico.LancamentoFacade;
+import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
+import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.security.JwtService;
 import java.math.BigDecimal;
 import java.util.List;

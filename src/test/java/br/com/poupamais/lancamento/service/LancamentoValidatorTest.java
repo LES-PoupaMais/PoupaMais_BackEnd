@@ -3,8 +3,8 @@ package br.com.poupamais.lancamento.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import br.com.poupamais.lancamento.NovoLancamento;
-import br.com.poupamais.lancamento.TipoLancamento;
+import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
+import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.math.BigDecimal;
 import java.util.Arrays;

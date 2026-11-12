@@ -1,9 +1,9 @@
 package br.com.poupamais.lancamento.service;
 
-import br.com.poupamais.lancamento.FiltroLancamento;
-import br.com.poupamais.lancamento.LancamentoResumo;
-import br.com.poupamais.lancamento.NovoLancamento;
-import br.com.poupamais.lancamento.StatusLancamento;
+import br.com.poupamais.lancamento.publico.dto.FiltroLancamento;
+import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
+import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
+import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import java.util.List;
 
 /** Regras de lançamento usadas pela API (RF001–RF005, RF008, RN001, RN004–RN006). */

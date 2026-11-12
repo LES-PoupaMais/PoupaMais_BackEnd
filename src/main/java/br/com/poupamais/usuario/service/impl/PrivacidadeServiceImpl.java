@@ -2,8 +2,8 @@ package br.com.poupamais.usuario.service.impl;
 
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
-import br.com.poupamais.usuario.model.Usuario;
-import br.com.poupamais.usuario.model.UsuarioRepository;
+import br.com.poupamais.usuario.model.entidades.Usuario;
+import br.com.poupamais.usuario.model.repositories.UsuarioRepository;
 import br.com.poupamais.usuario.service.PrivacidadeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;

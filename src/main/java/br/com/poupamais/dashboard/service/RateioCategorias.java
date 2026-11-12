@@ -1,8 +1,8 @@
 package br.com.poupamais.dashboard.service;
 
-import br.com.poupamais.categoria.CategoriaResumo;
-import br.com.poupamais.dashboard.api.dto.DashboardResponse.DespesaCategoria;
-import br.com.poupamais.lancamento.LancamentoResumo;
+import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
+import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.DespesaCategoria;
+import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Comparator;

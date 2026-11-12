@@ -96,34 +96,47 @@ br.com.poupamais
 │   ├── exception/     RegraNegocioException, RecursoNaoEncontradoException, ConflitoException,
 │   │                  ErroAutenticacaoException, ErroResponse, GlobalExceptionHandler
 │   └── domain/        Periodo (value object mês/ano), NomeMes
-├── lancamento/
-│   ├── LancamentoFacade.java              # ← API PÚBLICA do módulo (interface); a única coisa que outros módulos usam
-│   ├── LancamentoResumo.java              # ← records públicos devolvidos pela facade
-│   ├── TipoLancamento.java                # ← enums públicos (outros módulos precisam)
-│   ├── StatusLancamento.java          #   ATIVO, INATIVO, DELETADO
-│   ├── api/                               # interno: Controller + DTO + Mapper
+├── lancamento/                            # exemplo completo; os outros módulos seguem o mesmo desenho
+│   ├── package-info.java                  # @ApplicationModule (a raiz do módulo fica só com isto)
+│   ├── publico/                           # @NamedInterface("publico"): ÚNICA parte visível aos outros módulos
+│   │   ├── LancamentoFacade.java          #   interface (implementada no service/impl)
+│   │   ├── dto/       LancamentoResumo, NovoLancamento, FiltroLancamento   (records)
+│   │   └── enums/     TipoLancamento, StatusLancamento (ATIVO, INATIVO, DELETADO; podeIrPara)
+│   ├── endpoints/                         # interno: adaptador de entrada HTTP
 │   │   ├── LancamentoResource.java
-│   │   ├── LancamentoMapper.java
-│   │   └── dto/  LancamentoRequest, LancamentoResponse, StatusRequest, LancamentoFiltroParams
+│   │   ├── dto/       LancamentoRequest, LancamentoResponse, StatusRequest, LancamentoFiltroParams, CategoriaDoLancamentoResponse
+│   │   └── mappers/   LancamentoMapper
 │   ├── service/                           # interno: regras de negócio
-│   │   ├── LancamentoService.java
-│   │   ├── LancamentoValidator.java
-│   │   └── impl/ LancamentoServiceImpl.java   (também implementa LancamentoFacade)
+│   │   ├── LancamentoService.java, LancamentoValidator.java, LancamentoResumoConversor.java
+│   │   └── impl/      LancamentoServiceImpl   (também implementa LancamentoFacade)
 │   └── model/                             # interno: persistência
-│       ├── Lancamento.java, CategoriaLancamento.java, CategoriaLancamentoId.java
-│       ├── LancamentoRepository.java
-│       └── LancamentoSpecifications.java
-├── usuario/   (api/: AuthResource, PerfilResource, PrivacidadeResource · service/: AuthService, PerfilService,
-│               RecuperacaoSenhaService, PrivacidadeService · model/: Usuario, FotoPerfil, TokenRecuperacaoSenha)
-├── notificacao/ (EmailFacade, EnvioEmailException · service/impl/SmtpEmailService ·
-│                 templates em src/main/resources/templates/email/)
-├── categoria/ (CategoriaFacade, CategoriaResumo · api/ service/ model/)
-├── dashboard/ (api/ service/ · sem model: só lê pelos facades)
-└── arquivo/   (api/ · importacao/ · exportacao/)
+│       ├── entidades/      Lancamento, CategoriaLancamento, CategoriaLancamentoId
+│       ├── repositories/   LancamentoRepository
+│       └── specifications/ LancamentoSpecifications
+├── categoria/   publico/ (CategoriaFacade · dto/CategoriaResumo) · endpoints/ (+ dto/, mappers/) · service/ (+ impl/) ·
+│                model/ (entidades/Categoria · repositories/CategoriaRepository)
+├── usuario/     endpoints/ (AuthResource, PerfilResource, PrivacidadeResource + dto/, mappers/UsuarioMapper) ·
+│                service/ (+ impl/, inclui SessaoUsuarioConsulta) · model/ (entidades/ · repositories/) · sem publico/
+├── notificacao/ publico/ (EmailFacade · excecoes/EnvioEmailException) · service/impl/SmtpEmailService ·
+│                templates em src/main/resources/templates/email/
+├── dashboard/   endpoints/ (+ dto/) · service/ (ClassificacaoTaxa, RateioCategorias, MensagemSaldoFactory + impl/) ·
+│                sem model/ e sem publico/ (só lê pelas facades)
+└── arquivo/     endpoints/ (+ dto/) · service/importacao/ · service/exportacao/ · sem model/ e sem publico/
 ```
 
-**Regra de ouro:** o que está na **raiz do módulo** é público; `api/`, `service/` e `model/` são internos.
-Outro módulo **só** injeta a `XxxFacade` e usa os records/enums da raiz. **Nunca** o repository ou a entidade de outro módulo.
+**Regra de ouro:** só a pasta **`publico/`** (e as subpastas dela) é visível aos outros módulos; `endpoints/`, `service/` e `model/`
+são internos. Outro módulo **só** injeta a `XxxFacade` de `publico/` e usa os records/enums/exceções de `publico/dto`, `publico/enums`
+e `publico/excecoes`. **Nunca** o repository ou a entidade de outro módulo. Dentro do mesmo módulo vale tudo
+(ex.: a entidade `Lancamento` usa `publico/enums/StatusLancamento`).
+
+**Como a fronteira é verificada (Spring Modulith 2.1.2):**
+- Cada pasta pública tem `package-info.java` com `@NamedInterface("publico")`. **A anotação NÃO vale para subpacotes** (testado em
+  12/11/2026): uma subpasta nova dentro de `publico/` precisa do **próprio** `package-info.java` com o mesmo nome, senão o
+  `ModularidadeTest` acusa "depends on non-exposed type".
+- Módulo sem nada a expor (`usuario`, `dashboard`, `arquivo`) não tem `publico/`.
+- `shared` continua `@ApplicationModule(type = OPEN)`: todos usam tudo dele.
+- Nomes de pastas: `publico` (não `public`, palavra reservada), `endpoints`, `dto`, `mappers`, `service`, `impl`, `model`, `entidades`,
+  `repositories`, `specifications`, `enums`, `excecoes`. Testes ficam no **mesmo pacote** da classe testada.
 
 ### Relacionamento entre módulos no banco
 
@@ -144,13 +157,13 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 | `SecurityConfiguration` | propriedade `poupamais.swagger-habilitado` (`SWAGGER_HABILITADO`, padrão `true`) | `false` desliga o springdoc (`springdoc.api-docs.enabled`/`swagger-ui.enabled`) e tira as rotas do Swagger da lista pública (passam a exigir token). |
 | `SecurityConfiguration` | bean `PasswordEncoder` (BCrypt) | Injete nos services; nunca instancie outro. |
 | `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401 | Mensagens em português prontas para o usuário. |
-| `notificacao.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
-| `lancamento.LancamentoFacade` (branch `feat/lancamento`) | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records `LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`; enums `TipoLancamento`, `StatusLancamento` | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
-| `categoria.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarPorDescricao(idUsuario, descricao)` (Optional, não cria; adicionada na `feat/arquivo`), `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. |
+| `notificacao.publico.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.publico.excecoes.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
+| `lancamento.publico.LancamentoFacade` | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records em `publico.dto` (`LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`); enums em `publico.enums` (`TipoLancamento`, `StatusLancamento`) | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
+| `categoria.publico.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarPorDescricao(idUsuario, descricao)` (Optional, não cria), `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `publico.dto.CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. |
 
-### API pública do módulo `lancamento` (✅ implementada na `feat/lancamento`; `dashboard`, `arquivo` e `usuario` usam exatamente isto)
+### API pública do módulo `lancamento` (✅ implementada; `dashboard`, `arquivo` e `usuario` usam exatamente isto)
 
-Na raiz de `br.com.poupamais.lancamento`:
+Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.publico.enums` (enums):
 
 - `enum TipoLancamento { RECEITA, DESPESA }` e `enum StatusLancamento { ATIVO, INATIVO, DELETADO }` (com `podeIrPara(novo)`).
 - `record LancamentoResumo(Long id, String descricao, TipoLancamento tipo, int mes, int ano, BigDecimal valor, StatusLancamento status,
@@ -189,8 +202,9 @@ Na raiz de `br.com.poupamais.lancamento`:
 
 ### Decisões do módulo `dashboard` (tomadas na implementação)
 
-- Estrutura: `ClassificacaoTaxa` (raiz) · `api/DashboardResource` + `dto/DashboardParams`, `dto/DashboardResponse` ·
-  `service/DashboardService` → `impl/DashboardServiceImpl`, `RateioCategorias` (RN009), `MensagemSaldoFactory` (RN010). Sem `model/`.
+- Estrutura: `endpoints/DashboardResource` + `endpoints/dto/DashboardParams`, `DashboardResponse` · `service/DashboardService` →
+  `impl/DashboardServiceImpl`, `ClassificacaoTaxa` (RN010, interna: nenhum outro módulo usa), `RateioCategorias` (RN009),
+  `MensagemSaldoFactory` (RN010). Sem `model/` e sem `publico/`.
   Por ser só leitura e agregação, o service devolve direto o `DashboardResponse` (sem mapper).
 - **Uma** chamada a `LancamentoFacade.listarAtivos(idUsuario, periodo.ultimos(4))` por requisição; o resto é calculado em memória.
 - `mes`/`ano` opcionais (o que faltar vem de `Periodo.atual()`, fuso de Brasília); fora de 1–12 / 2000–2100 ou não numérico → `400`
@@ -207,15 +221,15 @@ Na raiz de `br.com.poupamais.lancamento`:
 
 | Pattern | Onde | Por quê |
 | --- | --- | --- |
-| **MVC em camadas** | `api` → `service` → `model` em todo módulo | Controller fino (HTTP + validação de formato), regra no service, persistência no repository. |
-| **Facade** | `CategoriaFacade`, `LancamentoFacade` na raiz do módulo | É a fronteira do módulo: esconde o interior, que pode mudar sem quebrar os outros. |
-| **DTO + Mapper** | `api/dto` (records) + `XxxMapper` (`@Component`, mapeamento manual) | Nunca expor entidade JPA; o contrato da API fica estável. |
-| **Repository** | Spring Data `JpaRepository` em `model/` | Acesso a dados padronizado, sempre filtrando pelo dono (RN005). |
+| **MVC em camadas** | `endpoints` → `service` → `model` em todo módulo | Controller fino (HTTP + validação de formato), regra no service, persistência no repository. |
+| **Facade** | `CategoriaFacade`, `LancamentoFacade`, `EmailFacade` em `publico/` | É a fronteira do módulo: esconde o interior, que pode mudar sem quebrar os outros. |
+| **DTO + Mapper** | `endpoints/dto` (records) + `endpoints/mappers/XxxMapper` (`@Component`, mapeamento manual) | Nunca expor entidade JPA; o contrato da API fica estável. |
+| **Repository** | Spring Data `JpaRepository` em `model/repositories/` | Acesso a dados padronizado, sempre filtrando pelo dono (RN005). |
 | **Specification** | `LancamentoSpecifications` (descrição, mês, ano, tipo, status, categoria) | Filtros combináveis do RF005 **reaproveitados pela exportação** ("exporta o que está filtrado"). |
 | **Strategy + Factory** | `arquivo.exportacao`: `ExportadorLancamentos` (interface) → `ExportadorCsv`, `ExportadorXlsx`; `ExportadorFactory` recebe `List<ExportadorLancamentos>` e escolhe pelo `formato` | Adicionar PDF amanhã = 1 classe nova, sem `if/else` espalhado. |
 | **Validator** | `LancamentoValidator` | RN001 em **um só lugar**, usado pelo cadastro manual **e** pela importação CSV. |
 | **Value Object** | `shared.domain.Periodo(mes, ano)` com `anterior()`, `ultimos(4)` e `nomeMes()` | RN008 (4 meses atravessando a virada do ano) sem conta de data espalhada. |
-| **Enum com comportamento** | `dashboard.ClassificacaoTaxa.de(BigDecimal taxa)` | RN010 (70% / 100%) num só lugar, testável. |
+| **Enum com comportamento** | `dashboard.service.ClassificacaoTaxa.de(BigDecimal taxa)` | RN010 (70% / 100%) num só lugar, testável. |
 | **Máquina de estados simples** | `StatusLancamento.podeIrPara(novo)` + `Lancamento.alterarStatus(novo)` | RN006: transições ATIVO/INATIVO/DELETADO validadas num lugar só. |
 | **Chain of Responsibility** | `JwtAuthenticationFilter` na filter chain do Spring Security | Autenticação fora dos controllers. |
 | **Exception Handler centralizado** | `shared.exception.GlobalExceptionHandler` (`@RestControllerAdvice`) | Formato de erro único (RNF007); nenhum `try/catch` em controller. |
@@ -227,7 +241,7 @@ Na raiz de `br.com.poupamais.lancamento`:
 
 - Regra de negócio em controller, ou controller chamando repository.
 - Entidade JPA em request/response.
-- Um módulo importando `api/`, `service/` ou `model/` de outro. O teste do Modulith falha.
+- Um módulo importando `endpoints/`, `service/` ou `model/` de outro (só `publico/` é permitido). O teste do Modulith falha.
 - `double`/`float` para dinheiro (usar `BigDecimal`), `@Autowired` em campo, `try/catch` que engole exceção.
 - Service "deus": se passar de ~200 linhas ou misturar assuntos, extraia (ex.: `RateioCategorias`, `MensagemSaldoFactory`).
 - `id_usuario` vindo do body/query: vem **sempre** do `UsuarioLogado` (token).
@@ -566,6 +580,7 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | schema já resolvido pelo Flyway (aplica `db/migration` ao subir); falta Postgres em nuvem, variáveis e job de imagem |
 | 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `development` | — |
 | 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | pendente | avaliar criar categoria + lançamento na mesma transação, ou remover a categoria órfã |
+| 13 | Reorganização de pastas: `publico/` (`@NamedInterface`), `endpoints/` (+ `dto/`, `mappers/`), `model/` (`entidades/`, `repositories/`, `specifications/`) | ✅ na branch `refactor/estrutura-modulos`, aguardando PR | só organização; nenhuma regra ou contrato mudou |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
 **Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência

@@ -3,7 +3,9 @@ package br.com.poupamais.categoria;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import br.com.poupamais.categoria.model.Categoria;
+import br.com.poupamais.categoria.model.entidades.Categoria;
+import br.com.poupamais.categoria.publico.CategoriaFacade;
+import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.categoria.service.CategoriaService;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;

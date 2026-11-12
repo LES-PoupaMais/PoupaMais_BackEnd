@@ -1,6 +1,6 @@
 package br.com.poupamais.lancamento.service;
 
-import br.com.poupamais.lancamento.NovoLancamento;
+import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
 import br.com.poupamais.shared.domain.Periodo;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.math.BigDecimal;

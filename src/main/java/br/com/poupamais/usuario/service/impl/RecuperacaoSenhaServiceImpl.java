@@ -1,12 +1,12 @@
 package br.com.poupamais.usuario.service.impl;
 
-import br.com.poupamais.notificacao.EmailFacade;
-import br.com.poupamais.notificacao.EnvioEmailException;
+import br.com.poupamais.notificacao.publico.EmailFacade;
+import br.com.poupamais.notificacao.publico.excecoes.EnvioEmailException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
-import br.com.poupamais.usuario.model.TokenRecuperacaoSenha;
-import br.com.poupamais.usuario.model.TokenRecuperacaoSenhaRepository;
-import br.com.poupamais.usuario.model.Usuario;
-import br.com.poupamais.usuario.model.UsuarioRepository;
+import br.com.poupamais.usuario.model.entidades.TokenRecuperacaoSenha;
+import br.com.poupamais.usuario.model.entidades.Usuario;
+import br.com.poupamais.usuario.model.repositories.TokenRecuperacaoSenhaRepository;
+import br.com.poupamais.usuario.model.repositories.UsuarioRepository;
 import br.com.poupamais.usuario.service.RecuperacaoSenhaService;
 import br.com.poupamais.usuario.service.RegrasConta;
 import java.nio.charset.StandardCharsets;

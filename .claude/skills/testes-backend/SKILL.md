@@ -15,6 +15,11 @@ description: Use ao escrever, corrigir ou revisar testes da API do PoupaMais (JU
 | Arquitetura | `ModularidadeTest` | Spring Modulith `ApplicationModules.verify()` | Sempre |
 
 O pacote do teste espelha o da classe testada (ex.: `br.com.poupamais.dashboard.service.impl`).
+Estrutura dos módulos: `publico/` (facade, `dto/`, `enums/`, `excecoes/`), `endpoints/` (resource, `dto/`, `mappers/`), `service/`
+(+ `impl/`) e `model/` (`entidades/`, `repositories/`, `specifications/`). Ex.: teste do resource em `<modulo>.endpoints`, da entidade
+em `<modulo>.model.entidades`, de enum público em `<modulo>.publico.enums`. Testes de integração ficam na raiz do módulo.
+`ModularidadeTest` reprovando com "depends on non-exposed type": o código usou algo fora de `publico/` de outro módulo, ou uma
+subpasta de `publico/` está sem `package-info.java` com `@NamedInterface("publico")`.
 
 ## Integração com banco real
 

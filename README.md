@@ -35,7 +35,8 @@ br.com.poupamais
 └── notificacao   envio de e-mails
 ```
 
-Cada módulo expõe apenas uma Facade pública; `api` (controllers e DTOs), `service` e `model` são internos.
+Cada módulo expõe só a pasta `publico/` (Facade, DTOs, enums e exceções públicas, marcada com `@NamedInterface`); `endpoints/`
+(controllers, DTOs e mappers), `service/` e `model/` (`entidades/`, `repositories/`, `specifications/`) são internos.
 As fronteiras são verificadas automaticamente pelo Spring Modulith (`ModularidadeTest`).
 Padrões usados: Facade, DTO + Mapper, Repository, Specification, Strategy + Factory, Validator, Value Object e Exception Handler central.
 
