@@ -20,6 +20,7 @@ import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,6 +30,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 @ExtendWith(MockitoExtension.class)
 class ImportacaoServiceTest {
@@ -44,7 +47,13 @@ class ImportacaoServiceTest {
 
   @BeforeEach
   void preparar() {
-    service = new ImportacaoService(new LeitorCsv(), new ConversorLinha(), categorias, lancamentos);
+    service =
+        new ImportacaoService(
+            new LeitorCsv(),
+            new ConversorLinha(),
+            categorias,
+            lancamentos,
+            TransactionOperations.withoutTransaction());
     lenient()
         .when(categorias.buscarPorDescricao(eq(USUARIO), anyString()))
         .thenReturn(Optional.empty());
@@ -118,6 +127,57 @@ class ImportacaoServiceTest {
     assertThat(resultado.falhas().getFirst().motivo())
         .isEqualTo("A categoria \"Antiga\" está inativa e não pode ser usada");
     verify(categorias, never()).buscarOuCriar(any(), any());
+  }
+
+  @Test
+  void naoDeveListarCategoriaCriadaParaLinhaRecusadaPeloCriar() {
+    when(lancamentos.criar(eq(USUARIO), any()))
+        .thenThrow(new RegraNegocioException("O valor deve ser maior que zero"))
+        .thenReturn(null);
+
+    ResultadoImportacao resultado =
+        importar("Recusada;DESPESA;8;2026;1;Pets\nAceita;DESPESA;8;2026;2;pets|Lazer\n");
+
+    assertThat(resultado.importados()).isEqualTo(1);
+    assertThat(resultado.falhas())
+        .extracting(ResultadoImportacao.Falha::motivo)
+        .containsExactly("O valor deve ser maior que zero");
+    assertThat(resultado.categoriasCriadas()).containsExactly("pets", "Lazer");
+    // A "Pets" da linha recusada foi desfeita com ela: não fica no cache e é criada de novo
+    verify(categorias).buscarOuCriar(USUARIO, "Pets");
+    verify(categorias).buscarOuCriar(USUARIO, "pets");
+  }
+
+  @Test
+  void deveGravarCategoriasELancamentoDentroDaTransacaoDaLinha() {
+    List<String> chamadasNaTransacao = new ArrayList<>();
+    TransactionOperations transacao =
+        new TransactionOperations() {
+          @Override
+          public <T> T execute(TransactionCallback<T> acao) {
+            chamadasNaTransacao.add("inicio");
+            T resultado = acao.doInTransaction(null);
+            chamadasNaTransacao.add("fim");
+            return resultado;
+          }
+        };
+    when(categorias.buscarOuCriar(eq(USUARIO), anyString()))
+        .thenAnswer(i -> {
+          chamadasNaTransacao.add("categoria");
+          return new CategoriaResumo(50L, i.getArgument(1), true);
+        });
+    when(lancamentos.criar(eq(USUARIO), any()))
+        .thenAnswer(i -> {
+          chamadasNaTransacao.add("lancamento");
+          return null;
+        });
+    service =
+        new ImportacaoService(
+            new LeitorCsv(), new ConversorLinha(), categorias, lancamentos, transacao);
+
+    importar("A;DESPESA;8;2026;1;Pets\n");
+
+    assertThat(chamadasNaTransacao).containsExactly("inicio", "categoria", "lancamento", "fim");
   }
 
   @Test

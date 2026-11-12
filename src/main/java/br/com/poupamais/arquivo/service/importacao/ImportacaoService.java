@@ -9,6 +9,7 @@ import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -19,14 +20,19 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionOperations;
 
 /**
- * Importação CSV (RF003, RN007, RN012, RN002). De propósito <b>não</b> é {@code @Transactional}:
- * cada linha válida é gravada pela {@code LancamentoFacade.criar} na sua própria transação, então
- * uma falha não desfaz as outras.
+ * Importação CSV (RF003, RN007, RN012, RN002). De propósito <b>não</b> é {@code @Transactional} por
+ * arquivo: cada linha válida é gravada na sua própria transação, então uma falha não desfaz as
+ * outras.
  *
  * <p>Por linha: converte e confere os campos; procura as categorias citadas (inativa = falha da
- * linha, sem criar nada); só então cria as inexistentes ({@code buscarOuCriar}) e grava.
+ * linha, sem criar nada); só então, numa transação só da linha, cria as inexistentes ({@code
+ * buscarOuCriar}) e grava ({@code LancamentoFacade.criar}). As facades usam a propagação padrão
+ * ({@code REQUIRED}) e entram nessa transação: se {@code criar} recusar a linha, a categoria criada
+ * para ela é desfeita junto. Cache e {@code categoriasCriadas} só recebem as categorias novas
+ * depois do commit da linha.
  */
 @Service
 @RequiredArgsConstructor
@@ -42,6 +48,7 @@ public class ImportacaoService {
   private final ConversorLinha conversor;
   private final CategoriaFacade categorias;
   private final LancamentoFacade lancamentos;
+  private final TransactionOperations transacao;
 
   public ResultadoImportacao importar(Long idUsuario, byte[] arquivo) {
     List<LinhaCsv> linhas = leitor.ler(arquivo);
@@ -75,11 +82,11 @@ public class ImportacaoService {
       try {
         DadosLinha dados = conversor.converter(linha.campos());
         verificarInativas(dados.categorias());
-        List<Long> ids = dados.categorias().stream().map(this::resolver).toList();
-        lancamentos.criar(
-            idUsuario,
-            new NovoLancamento(
-                dados.descricao(), dados.tipo(), dados.mes(), dados.ano(), dados.valor(), ids));
+        Map<String, CategoriaResumo> novas = new LinkedHashMap<>();
+        transacao.executeWithoutResult(status -> gravar(dados, novas));
+        // Só depois do commit: se a linha falhou, as categorias novas dela foram desfeitas
+        novas.forEach(cache::put);
+        novas.values().forEach(c -> criadas.add(c.descricao()));
         importados++;
       } catch (LinhaInvalidaException
           | RegraNegocioException
@@ -114,14 +121,22 @@ public class ImportacaoService {
       return encontrada;
     }
 
-    private Long resolver(String descricao) {
+    /** Roda dentro da transação da linha; {@code novas} recebe as categorias criadas nela. */
+    private void gravar(DadosLinha dados, Map<String, CategoriaResumo> novas) {
+      List<Long> ids = dados.categorias().stream().map(d -> resolver(d, novas)).toList();
+      lancamentos.criar(
+          idUsuario,
+          new NovoLancamento(
+              dados.descricao(), dados.tipo(), dados.mes(), dados.ano(), dados.valor(), ids));
+    }
+
+    private Long resolver(String descricao, Map<String, CategoriaResumo> novas) {
       Optional<CategoriaResumo> existente = existente(descricao);
       if (existente.isPresent()) {
         return existente.get().id();
       }
       CategoriaResumo criada = categorias.buscarOuCriar(idUsuario, descricao);
-      cache.put(chave(descricao), criada);
-      criadas.add(criada.descricao());
+      novas.put(chave(descricao), criada);
       return criada.id();
     }
 

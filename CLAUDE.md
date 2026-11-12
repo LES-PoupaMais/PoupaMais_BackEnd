@@ -469,7 +469,7 @@ Rota inexistente (com token válido) → 404 `"Recurso não encontrado"`; métod
   ```
 - Limites: **2 MB** (`spring.servlet.multipart.max-file-size=2MB`) e **5.000 linhas de dados**. Excedeu ou sem cabeçalho → 422 com o arquivo inteiro recusado.
 - Cada linha passa pelo mesmo `LancamentoValidator` (RN001). O método de importação **não** é `@Transactional`:
-  cada linha válida é salva na sua própria transação (`LancamentoFacade.criar`), então uma falha não desfaz as outras (RN007).
+  cada linha válida é salva na sua própria transação (categorias novas + `LancamentoFacade.criar`), então uma falha não desfaz as outras (RN007).
 - A exportação usa o **mesmo layout** (+ coluna `status`), para que um arquivo exportado possa ser reimportado.
 
 Decisões da implementação (`feat/arquivo`):
@@ -486,7 +486,10 @@ Decisões da implementação (`feat/arquivo`):
   a validação definitiva continua no `LancamentoValidator` via `LancamentoFacade.criar`. Categorias repetidas na linha (ignorando maiúsc.) contam uma vez.
 - **Categoria inativa** citada → falha da linha "A categoria "X" está inativa e não pode ser usada", sem criar as outras categorias novas da linha.
   Categoria nova (RN002) só é criada (`buscarOuCriar`) depois que a linha passou em tudo isso; `categoriasCriadas` lista as descrições criadas.
-  Raro: se `criar` ainda recusar a linha depois disso, a categoria criada fica (vazia).
+- **Transação por linha** (pendência 12): o `ImportacaoService` abre uma transação só da linha (`TransactionOperations`) com a criação
+  das categorias novas e o `LancamentoFacade.criar`; as facades usam a propagação padrão (`REQUIRED`) e entram nela. Se `criar` recusar
+  a linha (ou o commit falhar), a categoria criada para ela é desfeita junto: nenhuma categoria órfã, e `categoriasCriadas` (e o cache
+  da importação) só recebem categorias de linhas **gravadas**.
 - Erro inesperado numa linha → falha com "Não foi possível salvar esta linha. Tente novamente." (só o tipo da exceção vai para o log).
 - **Exportação**: CSV em UTF-8 **com BOM**, `;`, CRLF, valor `8500,00`; XLSX (aba "Lançamentos", cabeçalho em negrito, mês/ano/valor numéricos,
   valor com formato `0.00`). Nome `lancamentos-AAAA-MM-DD.<formato>` (data de São Paulo). `formato` ausente ou diferente de `csv`/`xlsx` → 400
@@ -579,8 +582,9 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | ✅ na `development` | — |
 | 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | schema já resolvido pelo Flyway (aplica `db/migration` ao subir); falta Postgres em nuvem, variáveis e job de imagem |
 | 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `development` | — |
-| 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | pendente | avaliar criar categoria + lançamento na mesma transação, ou remover a categoria órfã |
+| 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | ✅ na branch `fix/importacao-categoria-orfa`, aguardando PR | categorias novas + lançamento na mesma transação por linha (`TransactionOperations` no `arquivo`); ver "Formato CSV" |
 | 13 | Reorganização de pastas: `publico/` (`@NamedInterface`), `endpoints/` (+ `dto/`, `mappers/`), `model/` (`entidades/`, `repositories/`, `specifications/`) | ✅ na branch `refactor/estrutura-modulos`, aguardando PR | só organização; nenhuma regra ou contrato mudou |
+| 14 | Pendência (testes): cada contexto de `@SpringBootTest` em cache mantém um pool Hikari de 10 conexões (~70 no `verify`); duas pipelines locais ao mesmo tempo no `db-test` compartilhado passam do `max_connections=100` ("too many clients") | pendente | avaliar `spring.datasource.hikari.maximum-pool-size`/`minimum-idle` menores no perfil de teste |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
 **Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência
