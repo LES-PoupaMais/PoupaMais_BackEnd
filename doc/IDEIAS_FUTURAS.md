@@ -42,27 +42,27 @@ Implementação, quando decidida: tokens nas variáveis do shadcn em `src/app/gl
 
 ## 4. Funcionalidades candidatas (fora do escopo atual)
 
-| # | Ideia | Observação |
-| --- | --- | --- |
-| 1 | Cartões de crédito (vencimento, melhor dia de compra, em que fatura a compra cai) | Hoje o lançamento só tem mês/ano |
-| 2 | Faturas: fechamento, situação (aberta, paga, parcial, pendente para o mês seguinte), pagar fatura, alerta de vencimento | |
-| 3 | Compras parceladas e antecipação de parcelas | |
-| 4 | Contas bancárias e forma de pagamento (cartão, PIX, boleto) | |
-| 5 | Importar fatura em PDF por banco e conferência fatura × sistema | Amplia o módulo `arquivo` |
-| 6 | Dividir despesas com outras pessoas (igual, por %, por R$) com regra de arredondamento | Mudança grande de domínio |
-| 7 | Cobrança dessas pessoas: saldo, pagamentos, crédito, mensagem pronta para envio | |
-| 8 | Acesso de "observador" (a pessoa vê só a parte dela, envia comprovante e comenta) | Novo perfil de acesso |
-| 9 | Compra detalhada por itens (ex.: cupom de mercado) | |
-| 10 | Estorno e suspensão de compra (contestação) | |
-| 11 | Recorrentes: contas fixas (previsão pela média) e assinaturas | |
-| 12 | Previsão de caixa dos meses futuros | Dashboard atual só olha o passado |
-| 13 | Orçamento por categoria e regra 50/30/20 | |
-| 14 | Receitas recebidas e acompanhamento de investimentos | ⚠ Avaliar contra **RNI003** |
-| 15 | Central de avisos com filtros | |
-| 16 | Histórico/auditoria de alterações e importações | |
-| 17 | Open Finance com revisão antes de virar lançamento | ⚠ Conflita com **RNI002** |
-| 18 | PWA instalável com consulta offline | ⚠ Avaliar contra **RNI001** |
-| 19 | Backup automático e aviso de backup antigo | Atende RNF005 |
+| #   | Ideia                                                                                                                   | Observação                        |
+| --- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| 1   | Cartões de crédito (vencimento, melhor dia de compra, em que fatura a compra cai)                                       | Hoje o lançamento só tem mês/ano  |
+| 2   | Faturas: fechamento, situação (aberta, paga, parcial, pendente para o mês seguinte), pagar fatura, alerta de vencimento |                                   |
+| 3   | Compras parceladas e antecipação de parcelas                                                                            |                                   |
+| 4   | Contas bancárias e forma de pagamento (cartão, PIX, boleto)                                                             |                                   |
+| 5   | Importar fatura em PDF por banco e conferência fatura × sistema                                                         | Amplia o módulo `arquivo`         |
+| 6   | Dividir despesas com outras pessoas (igual, por %, por R$) com regra de arredondamento                                  | Mudança grande de domínio         |
+| 7   | Cobrança dessas pessoas: saldo, pagamentos, crédito, mensagem pronta para envio                                         |                                   |
+| 8   | Acesso de "observador" (a pessoa vê só a parte dela, envia comprovante e comenta)                                       | Novo perfil de acesso             |
+| 9   | Compra detalhada por itens (ex.: cupom de mercado)                                                                      |                                   |
+| 10  | Estorno e suspensão de compra (contestação)                                                                             |                                   |
+| 11  | Recorrentes: contas fixas (previsão pela média) e assinaturas                                                           |                                   |
+| 12  | Previsão de caixa dos meses futuros                                                                                     | Dashboard atual só olha o passado |
+| 13  | Orçamento por categoria e regra 50/30/20                                                                                |                                   |
+| 14  | Receitas recebidas e acompanhamento de investimentos                                                                    | ⚠ Avaliar contra **RNI003**       |
+| 15  | Central de avisos com filtros                                                                                           |                                   |
+| 16  | Histórico/auditoria de alterações e importações                                                                         |                                   |
+| 17  | Open Finance com revisão antes de virar lançamento                                                                      | ⚠ Conflita com **RNI002**         |
+| 18  | PWA instalável com consulta offline                                                                                     | ⚠ Avaliar contra **RNI001**       |
+| 19  | Backup automático e aviso de backup antigo                                                                              | Atende RNF005                     |
 
 ## 5. Encaixe na arquitetura (rascunho)
 

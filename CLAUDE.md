@@ -17,9 +17,10 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
   - `shared`: exceções + `GlobalExceptionHandler`, `Periodo`, `WebConfiguration` e **segurança JWT completa** (`shared.security`).
   - `notificacao`: `EmailFacade` (e-mail de recuperação de senha via SMTP).
   - `categoria`: CRUD completo + `CategoriaFacade`.
-- **Na branch `feat/usuario` (aguardando PR):** módulo `usuario` completo (auth, perfil, foto, troca/recuperação de senha, exclusão de conta),
-  `SenhaAlteradaConsulta` implementada (filtro recusa token de usuário excluído) e Swagger por `SWAGGER_HABILITADO`.
-- **Em andamento / próximo** (ver "Plano de entregas e pendências" no fim): `lancamento`, depois `dashboard`, `arquivo`, exportação de dados (RF016) e deploy.
+- **`usuario`:** auth, perfil, foto, troca/recuperação de senha, exclusão de conta; `SenhaAlteradaConsulta` implementada
+  (filtro recusa token de usuário excluído) e Swagger por `SWAGGER_HABILITADO`.
+- **`lancamento`:** CRUD, filtros (Specifications), status/lixeira e `LancamentoFacade` (ver "APIs públicas já prontas").
+- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016), `dashboard`, `arquivo`, correção da rota inexistente (500 → 404) e deploy.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
   1. **Configurar Infraestrutura Local** — `docker-compose.yml` + `init.sql` (Postgres sobe com o schema pronto).
@@ -143,9 +144,10 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 | `SecurityConfiguration` | bean `PasswordEncoder` (BCrypt) | Injete nos services; nunca instancie outro. |
 | `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401 | Mensagens em português prontas para o usuário. |
 | `notificacao.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
+| `lancamento.LancamentoFacade` (branch `feat/lancamento`) | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records `LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`; enums `TipoLancamento`, `StatusLancamento` | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
 | `categoria.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. |
 
-### API pública a criar no módulo `lancamento` (definida aqui para `dashboard`, `arquivo` e `usuario` não precisarem adivinhar)
+### API pública do módulo `lancamento` (✅ implementada na `feat/lancamento`; `dashboard`, `arquivo` e `usuario` usam exatamente isto)
 
 Na raiz de `br.com.poupamais.lancamento`:
 
@@ -163,6 +165,26 @@ Na raiz de `br.com.poupamais.lancamento`:
   - `List<LancamentoResumo> listar(Long idUsuario, FiltroLancamento filtro)` — mesmas Specifications e ordenação da listagem (exportação, RN013).
   - `List<LancamentoResumo> listarAtivos(Long idUsuario, Collection<Periodo> periodos)` — só ATIVO dos meses pedidos (dashboard, RN003/RN008).
   - `List<LancamentoResumo> listarTodos(Long idUsuario)` — todos os status (exportação de dados LGPD, RF016).
+
+### Decisões do módulo `lancamento` (tomadas na implementação)
+
+- `FiltroLancamento.vazio()` = sem filtros. `listar` com `categoriaId` que não é do usuário → `404` "Categoria não encontrada" (API e facade).
+- `listarAtivos` com lista de períodos vazia/nula → lista vazia (não consulta). Todas as listagens usam a ordenação ano/mês/id desc.
+- `LancamentoValidator.validar(NovoLancamento)` devolve os dados **normalizados**: descrição com `strip()`, valor `setScale(2, HALF_UP)`
+  (arredondado ≤ 0 → 422; máximo `99999999999999.99`, limite do `numeric(16,2)`), `categoriaIds` sem nulos e sem repetidos (ordem preservada).
+  Mensagens (422): "A descrição é obrigatória", "A descrição deve ter no máximo 100 caracteres", "O tipo é obrigatório (RECEITA ou DESPESA)",
+  "O mês deve estar entre 1 e 12", "O ano deve estar entre 2000 e 2100", "O valor é obrigatório", "O valor deve ser maior que zero",
+  "O valor excede o máximo permitido", "Informe pelo menos uma categoria". Na API o DTO já barra antes com `400` (`@Digits(14,2)` no valor).
+- `StatusLancamento.podeIrPara(mesmo)` = `false`. Mas o `PATCH /status` com o status que o lançamento **já tem** (ATIVO/INATIVO) é
+  idempotente: `200` sem mexer em `dataAtualizacao`. `PATCH` com `DELETADO` → `422` "Informe o status ATIVO ou INATIVO".
+  Mensagens: "Lançamento excluído não pode ser editado. Restaure-o antes.", "O lançamento já está excluído",
+  "Só é possível restaurar um lançamento excluído", "Não é possível alterar o status de X para Y", "Lançamento não encontrado".
+- **Edição:** só as categorias **novas** precisam estar ativas; uma categoria que já estava no lançamento e foi inativada depois pode continuar.
+- Os nomes das categorias são montados no `service` (`LancamentoResumoConversor`, 1 chamada a `CategoriaFacade.buscarPorIds` por lista),
+  porque a facade também devolve `LancamentoResumo`; o `LancamentoMapper` da `api` só converte `LancamentoResumo` → DTO.
+  A resposta traz `categorias: [{id, descricao}]` (sem `ativa`). O service da API devolve `LancamentoResumo`, não a entidade.
+- Repository com `@EntityGraph("categorias")` no `findAll(spec, sort)` e no `findByIdAndIdUsuario` (sem N+1). Filtro por categoria usa
+  subconsulta `exists` (não duplica linhas). `descricao` escapa `%` e `_`.
 
 ## Design patterns (onde e por quê)
 
@@ -487,14 +509,17 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 1 | Segurança JWT | ✅ na `development` | — |
 | 2 | `notificacao` | ✅ na `development` | — |
 | 3 | `categoria` | ✅ na `development` | — |
-| 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na branch `feat/usuario`, aguardando PR | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
-| 5 | `lancamento` | em andamento | criar a `LancamentoFacade` exatamente como definida acima |
+| 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na `development` | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
+| 5 | `lancamento` | ✅ na `development` | `LancamentoFacade` exatamente como definida acima |
 | 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | depois de 4 e 5 | usa `LancamentoFacade.listarTodos` |
 | 7 | `dashboard` | depois de 5 | |
 | 8 | `arquivo` (importação, exportação, template) | depois de 5 | |
+| 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | em andamento (`fix/rota-inexistente-404`) | deve responder `404` no padrão de erro |
 | 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | decidir Flyway × `init.sql` aplicado à mão |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
+**Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência
+(linha nova nesta tabela ou na coluna "Inclui" da entrega que vai tratar daquilo), para quem pegar a próxima tarefa. Evite acumular muito.
 
 ## Direção futura (ideias a discutir)
 
