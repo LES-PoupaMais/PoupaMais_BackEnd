@@ -73,6 +73,13 @@ class GlobalExceptionHandlerTest {
   }
 
   @Test
+  void erroDeAutenticacaoRetorna401() throws Exception {
+    mvc.perform(get("/teste/401"))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.mensagem").value("E-mail ou senha inválidos"));
+  }
+
+  @Test
   void arquivoGrandeRetorna422() throws Exception {
     mvc.perform(get("/teste/upload"))
         .andExpect(status().isUnprocessableContent())
@@ -100,6 +107,7 @@ class GlobalExceptionHandlerTest {
     @GetMapping("/teste/{caso}")
     void lancar(@PathVariable String caso) {
       switch (caso) {
+        case "401" -> throw new ErroAutenticacaoException("E-mail ou senha inválidos");
         case "404" -> throw new RecursoNaoEncontradoException("Lançamento não encontrado");
         case "409" -> throw new ConflitoException("E-mail já cadastrado");
         case "422" -> throw new RegraNegocioException("Lançamento deletado não pode ser editado");
