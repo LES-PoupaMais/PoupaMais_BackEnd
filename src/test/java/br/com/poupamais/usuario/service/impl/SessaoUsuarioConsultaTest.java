@@ -5,7 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import br.com.poupamais.shared.security.SenhaAlteradaConsulta.SituacaoUsuario;
-import br.com.poupamais.usuario.model.UsuarioRepository;
+import br.com.poupamais.usuario.model.repositories.UsuarioRepository;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;

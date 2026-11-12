@@ -1,9 +1,9 @@
 package br.com.poupamais.categoria.service.impl;
 
-import br.com.poupamais.categoria.CategoriaFacade;
-import br.com.poupamais.categoria.CategoriaResumo;
-import br.com.poupamais.categoria.model.Categoria;
-import br.com.poupamais.categoria.model.CategoriaRepository;
+import br.com.poupamais.categoria.model.entidades.Categoria;
+import br.com.poupamais.categoria.model.repositories.CategoriaRepository;
+import br.com.poupamais.categoria.publico.CategoriaFacade;
+import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.categoria.service.CategoriaService;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;

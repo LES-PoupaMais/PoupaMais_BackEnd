@@ -9,8 +9,8 @@ import static org.mockito.Mockito.when;
 
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
-import br.com.poupamais.usuario.model.Usuario;
-import br.com.poupamais.usuario.model.UsuarioRepository;
+import br.com.poupamais.usuario.model.entidades.Usuario;
+import br.com.poupamais.usuario.model.repositories.UsuarioRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;

@@ -1,7 +1,7 @@
 package br.com.poupamais.usuario.service;
 
 import br.com.poupamais.shared.security.JwtService.TokenGerado;
-import br.com.poupamais.usuario.model.Usuario;
+import br.com.poupamais.usuario.model.entidades.Usuario;
 
 /** Cadastro (RF009, RF015) e login (RF010). */
 public interface AuthService {

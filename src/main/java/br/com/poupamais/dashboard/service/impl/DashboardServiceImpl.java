@@ -1,16 +1,16 @@
 package br.com.poupamais.dashboard.service.impl;
 
-import br.com.poupamais.categoria.CategoriaResumo;
-import br.com.poupamais.dashboard.ClassificacaoTaxa;
-import br.com.poupamais.dashboard.api.dto.DashboardResponse;
-import br.com.poupamais.dashboard.api.dto.DashboardResponse.MaiorDespesa;
-import br.com.poupamais.dashboard.api.dto.DashboardResponse.MesResumo;
+import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
+import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse;
+import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.MaiorDespesa;
+import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.MesResumo;
+import br.com.poupamais.dashboard.service.ClassificacaoTaxa;
 import br.com.poupamais.dashboard.service.DashboardService;
 import br.com.poupamais.dashboard.service.MensagemSaldoFactory;
 import br.com.poupamais.dashboard.service.RateioCategorias;
-import br.com.poupamais.lancamento.LancamentoFacade;
-import br.com.poupamais.lancamento.LancamentoResumo;
-import br.com.poupamais.lancamento.TipoLancamento;
+import br.com.poupamais.lancamento.publico.LancamentoFacade;
+import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
+import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.domain.Periodo;
 import java.math.BigDecimal;
 import java.math.RoundingMode;

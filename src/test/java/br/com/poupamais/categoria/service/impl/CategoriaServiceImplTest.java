@@ -9,9 +9,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import br.com.poupamais.categoria.CategoriaResumo;
-import br.com.poupamais.categoria.model.Categoria;
-import br.com.poupamais.categoria.model.CategoriaRepository;
+import br.com.poupamais.categoria.model.entidades.Categoria;
+import br.com.poupamais.categoria.model.repositories.CategoriaRepository;
+import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;

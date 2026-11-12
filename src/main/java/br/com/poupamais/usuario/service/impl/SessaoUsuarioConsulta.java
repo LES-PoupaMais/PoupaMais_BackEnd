@@ -1,7 +1,7 @@
 package br.com.poupamais.usuario.service.impl;
 
 import br.com.poupamais.shared.security.SenhaAlteradaConsulta;
-import br.com.poupamais.usuario.model.UsuarioRepository;
+import br.com.poupamais.usuario.model.repositories.UsuarioRepository;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
