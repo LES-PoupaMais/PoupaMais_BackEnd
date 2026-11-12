@@ -407,7 +407,8 @@ Response de lançamento:
 }
 ```
 
-400 validação · 401 não autenticado · 404 não encontrado/não pertence ao usuário · 409 duplicidade · 422 regra de negócio · 500 genérico (sem stacktrace).
+400 validação · 401 não autenticado · 404 não encontrado/não pertence ao usuário · 405 método não suportado · 409 duplicidade · 422 regra de negócio · 500 genérico (sem stacktrace).
+Rota inexistente (com token válido) → 404 `"Recurso não encontrado"`; método HTTP não suportado → 405 `"Método não permitido para este recurso."`.
 
 ## Formato CSV (RN012 no DVP)
 

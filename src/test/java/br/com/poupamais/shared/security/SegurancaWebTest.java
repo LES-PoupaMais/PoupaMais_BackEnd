@@ -68,6 +68,31 @@ class SegurancaWebTest {
   }
 
   @Test
+  void rotaInexistenteComTokenValidoRetorna404NoPadrao() throws Exception {
+    String token = jwtService.gerar(99L).token();
+
+    mvc.perform(get("/api/nao-existe").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.mensagem").value("Recurso não encontrado"));
+  }
+
+  @Test
+  void metodoNaoSuportadoComTokenValidoRetorna405NoPadrao() throws Exception {
+    String token = jwtService.gerar(99L).token();
+
+    mvc.perform(post("/api/privado").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+        .andExpect(status().isMethodNotAllowed())
+        .andExpect(jsonPath("$.status").value(405))
+        .andExpect(jsonPath("$.mensagem").value("Método não permitido para este recurso."));
+  }
+
+  @Test
+  void rotaInexistenteSemTokenContinua401() throws Exception {
+    mvc.perform(get("/api/nao-existe")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
   void passwordEncoderEhBcrypt() {
     String hash = passwordEncoder.encode("123456");
 
