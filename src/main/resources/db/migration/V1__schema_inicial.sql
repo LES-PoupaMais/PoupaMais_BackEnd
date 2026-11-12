@@ -1,4 +1,5 @@
-CREATE SCHEMA IF NOT EXISTS poupamais;
+-- Schema inicial do PoupaMais (6 tabelas). O schema poupamais é criado pelo Flyway (spring.flyway).
+-- NUNCA edite uma migração já aplicada: crie V<n>__descricao.sql.
 
 -- ---------------------------------------------------------------------
 -- USUARIO

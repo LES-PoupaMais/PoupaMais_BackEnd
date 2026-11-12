@@ -33,7 +33,7 @@ class ExclusaoContaIntegracaoTest {
 
 - O banco **não** é limpo entre testes: gere dados únicos (e-mail com sufixo aleatório, por exemplo).
 - Localmente: `docker compose up -d db-test` e `export POUPAMAIS_TEST_DB_URL=jdbc:postgresql://localhost:5433/poupamais_test`.
-- O schema vem do mesmo `docker/init.sql` usado no desenvolvimento.
+- O `db-test` nasce vazio: o Flyway aplica as mesmas migrações (`db/migration`) do desenvolvimento ao subir o contexto.
 
 ## Regras de escrita
 
