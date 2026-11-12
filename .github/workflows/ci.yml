@@ -50,11 +50,7 @@ jobs:
           java-version: '21'
           cache: maven
 
-      # O serviço sobe antes do checkout, então o schema é aplicado aqui (mesmo init.sql do desenvolvimento)
-      - name: Schema do banco de testes
-        env:
-          PGPASSWORD: poupamais
-        run: psql -v ON_ERROR_STOP=1 -h localhost -U poupamais -d poupamais_test -f docker/init.sql
+      # O banco de serviço nasce vazio: o Flyway cria o schema ao subir o contexto dos testes
 
       - name: Formatação
         run: ./mvnw -B -ntp spotless:check

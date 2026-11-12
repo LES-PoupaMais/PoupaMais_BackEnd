@@ -29,7 +29,7 @@ Precisa de dado de outro módulo? Use a **Facade** pública dele (raiz do módul
 
 ## 3. Implementar de baixo para cima
 
-1. **model/**: entidade (se a tabela mudou, o DDL muda primeiro: `docker/init.sql`, a partir do DDL oficial), repository,
+1. **model/**: entidade (se a tabela mudou, o DDL muda primeiro: nova migração `db/migration/V<n>__descricao.sql`; nunca editar uma já aplicada), repository,
    Specification se tiver filtro. Toda consulta filtra por `idUsuario`.
 2. **service/**: interface + `impl/`. Regra de negócio aqui; lança exceções de `shared.exception` com mensagem em português pronta
    para o usuário. `@Transactional` em escrita, `readOnly = true` em leitura. Dinheiro em `BigDecimal`.
@@ -47,4 +47,5 @@ Precisa de dado de outro módulo? Use a **Facade** pública dele (raiz do módul
 ## 5. Fechar
 
 - Endpoint novo ou alterado → atualize o **contrato** no `CLAUDE.md` deste repo **e** no `../PoupaMais_FrontEnd/CLAUDE.md`.
-- Rode a skill `pipeline-local` (os mesmos passos do CI) antes de dizer que terminou.
+- **Definição de pronto:** rode o passo a passo completo da skill `pipeline-local` (os mesmos passos do CI) com tudo verde.
+  Se algum passo não rodou ou algum teste de integração foi pulado, a tarefa não está pronta.

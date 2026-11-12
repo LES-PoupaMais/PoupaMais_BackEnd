@@ -13,17 +13,17 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 
 - **Fonte da verdade:** este `CLAUDE.md`. Os `.md` do DVP em `../Documentação/md/` são uma versão anterior; se divergirem, vale este arquivo.
 - **Pronto na `development`:**
-  - Fundação: Spring Boot 4.1.2, Spring Modulith 2.1.2, `docker-compose.yml` (db, db-test, mailpit), `docker/init.sql` (6 tabelas), JaCoCo, Spotless.
+  - Fundação: Spring Boot 4.1.2, Spring Modulith 2.1.2, `docker-compose.yml` (db, db-test, mailpit, api), Flyway (`db/migration`, 6 tabelas), `Dockerfile`, JaCoCo, Spotless.
   - `shared`: exceções + `GlobalExceptionHandler`, `Periodo`, `WebConfiguration` e **segurança JWT completa** (`shared.security`).
   - `notificacao`: `EmailFacade` (e-mail de recuperação de senha via SMTP).
   - `categoria`: CRUD completo + `CategoriaFacade`.
 - **`usuario`:** auth, perfil, foto, troca/recuperação de senha, exclusão de conta; `SenhaAlteradaConsulta` implementada
   (filtro recusa token de usuário excluído) e Swagger por `SWAGGER_HABILITADO`.
 - **`lancamento`:** CRUD, filtros (Specifications), status/lixeira e `LancamentoFacade` (ver "APIs públicas já prontas").
-- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016), `dashboard`, `arquivo`, correção da rota inexistente (500 → 404) e deploy.
+- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016), `dashboard`, `arquivo`, e deploy.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
-  1. **Configurar Infraestrutura Local** — `docker-compose.yml` + `init.sql` (Postgres sobe com o schema pronto).
+  1. **Configurar Infraestrutura Local** — `docker-compose.yml` + Flyway (schema aplicado ao subir a API).
   2. **Camada de Domínio** — entidades JPA, enums, repositories, exceptions + handler global (módulo `shared` + `model` de cada módulo).
   3. **Serviços e Segurança** — services (interface + `impl`), `JwtService`, `SecurityConfiguration`, `WebConfiguration`.
   4. **Camada de API** — DTOs, mappers, resources (cadastro, login, CRUD de lançamentos e categorias, dashboard).
@@ -49,16 +49,15 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 ## Comandos
 
 ```bash
-docker compose up -d db mailpit    # Postgres (executa docker/init.sql na 1ª vez) + Mailpit (e-mails em http://localhost:8025)
-./mvnw spring-boot:run             # API em http://localhost:8080 · Swagger em /swagger-ui.html
+docker compose up -d --build       # tudo no Docker: Postgres + Mailpit + API (http://localhost:8080, Flyway aplica o schema)
+docker compose up -d db mailpit    # só a infra: Postgres + Mailpit (e-mails em http://localhost:8025)
+./mvnw spring-boot:run             # API em http://localhost:8080 · Swagger em /swagger-ui.html (Flyway aplica as migrações)
 ./mvnw test                        # testes unitários e web (integração é pulada sem POUPAMAIS_TEST_DB_URL)
 ./mvnw verify                      # tudo o que o CI roda: testes + ModularidadeTest + piso do JaCoCo
 ./mvnw spotless:apply              # formata o código: rode antes de commitar
 ./mvnw clean package -DskipTests   # gera o jar
-docker compose down -v             # derruba e APAGA o volume (reaplica init.sql na próxima subida)
+docker compose down -v             # derruba e APAGA o volume (o Flyway recria o schema na próxima subida)
 ```
-
-> `init.sql` só roda quando o volume está vazio. Mudou o DDL? `docker compose down -v` e suba de novo.
 
 ## Arquitetura: monólito modular + MVC em camadas
 
@@ -217,8 +216,11 @@ Na raiz de `br.com.poupamais.lancamento`:
 
 ## Banco de dados
 
-DDL oficial: `../Banco de Dados/poupamais_modelo_fisico.sql` → copiar para `docker/init.sql`. É a fonte da verdade; o Hibernate não cria tabelas.
+DDL em `src/main/resources/db/migration` (Flyway): é a fonte da verdade; o Hibernate não cria tabelas.
+O `V1__schema_inicial.sql` veio do DDL oficial (`../Banco de Dados/poupamais_modelo_fisico.sql`).
 
+- Mudança de banco = **nova migração** `V<n>__descricao.sql`. **Nunca editar migração já aplicada**; só adicionar.
+- `spring.flyway`: schema `poupamais` criado e gerenciado pelo Flyway, histórico em `poupamais.flyway_schema_history`.
 - `spring.jpa.hibernate.ddl-auto=validate` e `spring.jpa.properties.hibernate.default_schema=poupamais`.
 - Tabelas: `usuario`, `categoria`, `lancamento`, `categorias_lancamentos`.
 - Tipos: `valor numeric(16,2)` → **`BigDecimal`**; `data_cadastro`/`data_atualizacao` são `date` → `LocalDate`;
@@ -464,7 +466,7 @@ Três níveis obrigatórios, mais a verificação de arquitetura. Guia detalhado
 | **Arquitetura** | `ModularidadeTest` | Nenhum módulo acessa o interior de outro (Spring Modulith) | Nenhum |
 
 - Integração roda só com `POUPAMAIS_TEST_DB_URL` definida (`@EnabledIfEnvironmentVariable`); no CI ela está **sempre** definida.
-  Localmente: `docker compose up -d db-test` (porta 5433, schema do `docker/init.sql`) e
+  Localmente: `docker compose up -d db-test` (porta 5433, nasce vazio; o Flyway cria o schema ao subir o contexto) e
   `export POUPAMAIS_TEST_DB_URL=jdbc:postgresql://localhost:5433/poupamais_test`.
 - **Cobertura (JaCoCo)**: `./mvnw verify` falha abaixo do piso do `pom.xml`: **80% de linhas e 70% de branches** no início
   (o Previna usa 95/90; subimos o piso junto quando a cobertura subir). Excluídos: `PoupaMaisApplication` e os `dto/` (records sem lógica).
@@ -479,14 +481,20 @@ Arquivo: `.github/workflows/ci.yml` (mesmo desenho da pipeline do Previna, adapt
 
 | Job | Passos | Reprova se |
 |---|---|---|
-| `testes` (Testes e cobertura) | 1. checkout · 2. Java 21 Temurin com cache Maven · 3. aplica `docker/init.sql` no Postgres de serviço · 4. `spotless:check` · 5. `./mvnw -B -ntp verify` · 6. publica o relatório JaCoCo (sempre) e o do Surefire (se falhar) | formatação, qualquer teste, `ModularidadeTest` ou cobertura abaixo do piso |
+| `testes` (Testes e cobertura) | 1. checkout · 2. Java 21 Temurin com cache Maven · 3. `spotless:check` · 4. `./mvnw -B -ntp verify` (o Flyway cria o schema no Postgres de serviço, vazio) · 5. publica o relatório JaCoCo (sempre) e o do Surefire (se falhar) | formatação, qualquer teste, `ModularidadeTest` ou cobertura abaixo do piso |
 | `compose` (Docker Compose) | valida `docker compose config -q` | compose inválido |
 
 - Serviço do job `testes`: `postgres:17-alpine` com `POUPAMAIS_TEST_DB_URL` apontando para ele, então **os testes de integração sempre rodam no CI**.
 - Rodar o mesmo localmente: skill `pipeline-local`.
 - **Regra da equipe:** PR só é integrado com o CI verde. Configurar no GitHub: Settings → Branches → proteção da `development` e da `main`
   exigindo o check "Testes e cobertura" e 1 aprovação.
-- Futuro (card de Deploy/Dockerfiles): job que constrói a imagem Docker e o deploy automático após o merge.
+- Futuro (card de Deploy): job que constrói a imagem Docker e o deploy automático após o merge.
+
+## Definição de pronto
+
+Nenhuma tarefa é dada como finalizada sem rodar o passo a passo **completo** da pipeline local (skill `pipeline-local`:
+`spotless:check`, `db-test` no ar, `verify` com os testes de integração rodando, `docker compose config -q`) com tudo verde.
+Se algum passo não rodou (Docker parado, rede, teste pulado), a tarefa **não está pronta**: diga exatamente o que faltou.
 
 ## Claude Code: skills e plugins
 
@@ -515,8 +523,9 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | depois de 4 e 5 | usa `LancamentoFacade.listarTodos` |
 | 7 | `dashboard` | depois de 5 | |
 | 8 | `arquivo` (importação, exportação, template) | depois de 5 | |
-| 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | em andamento (`fix/rota-inexistente-404`) | deve responder `404` no padrão de erro |
-| 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | decidir Flyway × `init.sql` aplicado à mão |
+| 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | ✅ na `development` | — |
+| 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | schema já resolvido pelo Flyway (aplica `db/migration` ao subir); falta Postgres em nuvem, variáveis e job de imagem |
+| 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `chore/flyway-docker`, aguardando PR | — |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
 **Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência
