@@ -17,7 +17,9 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
   - `shared`: exceções + `GlobalExceptionHandler`, `Periodo`, `WebConfiguration` e **segurança JWT completa** (`shared.security`).
   - `notificacao`: `EmailFacade` (e-mail de recuperação de senha via SMTP).
   - `categoria`: CRUD completo + `CategoriaFacade`.
-- **Em andamento / próximo** (ver "Plano de entregas e pendências" no fim): `usuario`, `lancamento`, depois `dashboard`, `arquivo`, exportação de dados (RF016) e deploy.
+- **Na branch `feat/usuario` (aguardando PR):** módulo `usuario` completo (auth, perfil, foto, troca/recuperação de senha, exclusão de conta),
+  `SenhaAlteradaConsulta` implementada (filtro recusa token de usuário excluído) e Swagger por `SWAGGER_HABILITADO`.
+- **Em andamento / próximo** (ver "Plano de entregas e pendências" no fim): `lancamento`, depois `dashboard`, `arquivo`, exportação de dados (RF016) e deploy.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
   1. **Configurar Infraestrutura Local** — `docker-compose.yml` + `init.sql` (Postgres sobe com o schema pronto).
@@ -136,7 +138,8 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 | --- | --- | --- |
 | `shared.security.UsuarioLogado` | `static Long id()` | Id do usuário do token. Sem usuário → `ErroAutenticacaoException` (401). Única fonte do id (RN005). |
 | `shared.security.JwtService` | `TokenGerado gerar(Long idUsuario)` → `(String token, Instant expiraEm)`; `Optional<TokenValido> validar(String token)` → `(idUsuario, emitidoEm, expiraEm)` | HS256, subject = id, `iat`/`exp` em segundos. `validar` nunca lança nem loga. App não sobe com `JWT_SECRET` < 32 bytes ou `JWT_EXPIRACAO_MIN` ≤ 0. |
-| `shared.security.SenhaAlteradaConsulta` | `Optional<Instant> senhaAlteradaEm(Long idUsuario)` | **Implementada pelo módulo `usuario`.** O filtro recusa token com `iat` < `senha_alterada_em` (comparação em segundos). Ver "Sessão de usuário excluído" abaixo. |
+| `shared.security.SenhaAlteradaConsulta` | `Optional<SituacaoUsuario> situacao(Long idUsuario)`; record `SituacaoUsuario(Instant senhaAlteradaEm)` (`null` = nunca trocou) | **Implementada no `usuario` (`SessaoUsuarioConsulta`, 1 consulta JPQL por requisição autenticada).** Vazio = usuário não existe mais → o filtro **recusa** o token. Também recusa `iat` < `senha_alterada_em` (comparação em segundos). Sem bean (ex.: `@WebMvcTest` de outro módulo) o filtro não checa. |
+| `SecurityConfiguration` | propriedade `poupamais.swagger-habilitado` (`SWAGGER_HABILITADO`, padrão `true`) | `false` desliga o springdoc (`springdoc.api-docs.enabled`/`swagger-ui.enabled`) e tira as rotas do Swagger da lista pública (passam a exigir token). |
 | `SecurityConfiguration` | bean `PasswordEncoder` (BCrypt) | Injete nos services; nunca instancie outro. |
 | `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401 | Mensagens em português prontas para o usuário. |
 | `notificacao.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
@@ -245,14 +248,13 @@ Fora de escopo (requisitos inversos): app nativo (RNI001), integração bancári
 - Proteção de dados (RNF019): nunca logar senha, token ou valor financeiro; mensagens de erro sem detalhes internos.
 - RNF006: **não** existe detecção de lançamento duplicado (dados iguais são válidos). A única proteção é contra reenvio técnico, feita no front.
 - Senha: BCrypt, mínimo 6 caracteres (regra do protótipo). Nunca retornar `senha` em DTO.
-- **Sessão de usuário excluído:** a implementação de `SenhaAlteradaConsulta` no `usuario` deve fazer o filtro **recusar** token de usuário
-  que não existe mais. Acrescente em `SenhaAlteradaConsulta` o método `boolean usuarioExiste(Long idUsuario)` (ou troque o retorno por um
-  tipo que diga "não existe") e faça o `JwtAuthenticationFilter` recusar quando o usuário não existir. Com o módulo `usuario` presente,
-  o bean é obrigatório.
+- **Sessão de usuário excluído (feito):** `SenhaAlteradaConsulta.situacao(id)` devolve vazio quando o usuário não existe mais e o
+  `JwtAuthenticationFilter` recusa o token (rota privada → 401). Com o módulo `usuario` presente, o bean sempre existe.
 - **Swagger:** liberado só quando `SWAGGER_HABILITADO=true` (padrão `true` em dev, `false` em produção). Com `false`, o springdoc fica
   desligado (`springdoc.api-docs.enabled` e `springdoc.swagger-ui.enabled`) e as rotas do Swagger saem da lista pública.
 - Segredo do JWT e credenciais via variável de ambiente (`JWT_SECRET`, `JWT_EXPIRACAO_MIN`, `DB_URL`, `DB_USER`, `DB_PASSWORD`,
-  `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`, `FRONT_URL` (monta o link de redefinição)), com default só para dev.
+  `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM`, `FRONT_URL` (monta o link de redefinição), `SWAGGER_HABILITADO`),
+  com default só para dev.
 - CORS: o navegador **não** chama esta API (o Next faz as chamadas pelo servidor). Mantenha o `WebConfiguration` com `CORS_ORIGINS`
   só para Swagger e testes locais; em produção, restrinja à URL do front.
 
@@ -277,6 +279,16 @@ Detalhes do `usuario` (decididos):
   grava só o SHA-256 (hex); 30 min; uso único; novo pedido marca os anteriores como usados. Falha de e-mail não muda a resposta (`202`).
 - Redefinir/trocar senha: grava `senha_alterada_em = now()` (truncado em segundos). A troca devolve token novo, emitido **depois** dessa data.
 - Foto: tipo detectado pelos **bytes** (assinaturas JPEG `FF D8 FF`, PNG `89 50 4E 47`, WEBP `RIFF....WEBP`), ≤ 2 MB; senão `422`.
+- Decididos na implementação (feat/usuario):
+  - Mensagens: e-mail duplicado "Este e-mail já está cadastrado"; token "Link de redefinição inválido ou expirado. Solicite um novo.";
+    troca "A senha atual está incorreta" / "A nova senha deve ser diferente da atual"; exclusão "Senha incorreta";
+    foto "A foto deve ser uma imagem JPG, PNG ou WEBP" / "A foto deve ter no máximo 2 MB" / sem foto "Foto de perfil não encontrada".
+  - `recuperar-senha` com e-mail vazio ou em formato inválido → `400` (validação de formato, não revela nada); qualquer e-mail
+    bem formado → `202` sem corpo. Falha de SMTP só gera `warn` sem e-mail/link/token; o token fica gravado (o usuário pede de novo).
+  - Redefinir: valida a nova senha **antes** de gastar o token; ao redefinir, marca como usados todos os tokens pendentes do usuário.
+  - `PUT /usuarios/me/foto` sem o campo `foto` → `422` (tipo inválido). `DELETE` da foto sem foto → `204` (idempotente).
+  - Token válido de usuário que sumiu entre o filtro e o service → `401` (mesma mensagem de sessão expirada).
+  - `PUT /usuarios/me` ignora `email` no body (e-mail não editável).
 
 **Perfil e privacidade** (módulo `usuario`, RF013–RF017)
 
@@ -475,7 +487,7 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 1 | Segurança JWT | ✅ na `development` | — |
 | 2 | `notificacao` | ✅ na `development` | — |
 | 3 | `categoria` | ✅ na `development` | — |
-| 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | em andamento | implementar `SenhaAlteradaConsulta` + recusar usuário excluído; Swagger por `SWAGGER_HABILITADO`; capturar `EnvioEmailException` |
+| 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na branch `feat/usuario`, aguardando PR | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
 | 5 | `lancamento` | em andamento | criar a `LancamentoFacade` exatamente como definida acima |
 | 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | depois de 4 e 5 | usa `LancamentoFacade.listarTodos` |
 | 7 | `dashboard` | depois de 5 | |

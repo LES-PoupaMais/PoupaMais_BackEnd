@@ -37,7 +37,12 @@ poupamais:
     remetente: ${MAIL_FROM:PoupaMais <nao-responda@poupamais.local>}
   front-url: ${FRONT_URL:http://localhost:3000}
   cors-origins: ${CORS_ORIGINS:http://localhost:3000}
+  # Swagger/OpenAPI: true em dev, false em produção (desliga o springdoc e tira as rotas da lista pública)
+  swagger-habilitado: ${SWAGGER_HABILITADO:true}
 
 springdoc:
+  api-docs:
+    enabled: ${poupamais.swagger-habilitado}
   swagger-ui:
+    enabled: ${poupamais.swagger-habilitado}
     path: /swagger-ui.html

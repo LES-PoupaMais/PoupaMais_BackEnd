@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -56,14 +55,20 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
   // RN014/RN015: token emitido antes da última troca de senha não vale mais.
   // iat tem precisão de segundos, por isso compara com senha_alterada_em truncado: o token novo
   // devolvido na troca de senha (mesmo segundo) continua válido.
+  // RF017: token de usuário que não existe mais (conta excluída) é recusado.
   private boolean sessaoAindaValida(JwtService.TokenValido token) {
     SenhaAlteradaConsulta consulta = senhaAlteradaConsulta.getIfAvailable();
     if (consulta == null) {
       return true;
     }
-    Optional<Instant> alteradaEm = consulta.senhaAlteradaEm(token.idUsuario());
-    return alteradaEm
-        .map(instante -> !token.emitidoEm().isBefore(instante.truncatedTo(ChronoUnit.SECONDS)))
-        .orElse(true);
+    return consulta
+        .situacao(token.idUsuario())
+        .map(situacao -> emitidoDepoisDaTroca(token, situacao.senhaAlteradaEm()))
+        .orElse(false);
+  }
+
+  private static boolean emitidoDepoisDaTroca(JwtService.TokenValido token, Instant alteradaEm) {
+    return alteradaEm == null
+        || !token.emitidoEm().isBefore(alteradaEm.truncatedTo(ChronoUnit.SECONDS));
   }
 }

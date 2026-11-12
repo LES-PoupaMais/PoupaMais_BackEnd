@@ -95,12 +95,24 @@ class SegurancaWebTest {
         .andExpect(status().isForbidden());
   }
 
+  @Test
+  void swaggerEhPublicoQuandoHabilitado() throws Exception {
+    // Sem springdoc no contexto de teste: o controller de teste responde no lugar dele
+    mvc.perform(get("/v3/api-docs")).andExpect(status().isOk());
+    mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
+  }
+
   @RestController
   static class ControllerDeTeste {
 
     @PostMapping("/api/auth/login")
     String publico() {
       return "ok";
+    }
+
+    @GetMapping({"/v3/api-docs", "/swagger-ui/index.html", "/swagger-ui.html"})
+    String swagger() {
+      return "swagger";
     }
 
     @GetMapping("/api/privado")

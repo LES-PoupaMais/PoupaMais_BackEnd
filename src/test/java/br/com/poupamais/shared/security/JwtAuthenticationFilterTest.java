@@ -84,7 +84,7 @@ class JwtAuthenticationFilterTest {
   @Test
   void deveRecusarTokenEmitidoAntesDaTrocaDeSenha() throws Exception {
     when(provider.getIfAvailable()).thenReturn(consulta);
-    when(consulta.senhaAlteradaEm(7L)).thenReturn(Optional.of(EMISSAO.plusSeconds(60)));
+    when(consulta.situacao(7L)).thenReturn(situacao(EMISSAO.plusSeconds(60)));
 
     executar("Bearer " + jwtService.gerar(7L).token());
 
@@ -94,7 +94,7 @@ class JwtAuthenticationFilterTest {
   @Test
   void deveAceitarTokenEmitidoNoMesmoSegundoDaTrocaDeSenha() throws Exception {
     when(provider.getIfAvailable()).thenReturn(consulta);
-    when(consulta.senhaAlteradaEm(7L)).thenReturn(Optional.of(EMISSAO.plusMillis(400)));
+    when(consulta.situacao(7L)).thenReturn(situacao(EMISSAO.plusMillis(400)));
 
     executar("Bearer " + jwtService.gerar(7L).token());
 
@@ -104,10 +104,35 @@ class JwtAuthenticationFilterTest {
   @Test
   void deveAceitarTokenQuandoSenhaNuncaFoiTrocada() throws Exception {
     when(provider.getIfAvailable()).thenReturn(consulta);
-    when(consulta.senhaAlteradaEm(any())).thenReturn(Optional.empty());
+    when(consulta.situacao(any())).thenReturn(situacao(null));
 
     executar("Bearer " + jwtService.gerar(7L).token());
 
     assertThat(UsuarioLogado.id()).isEqualTo(7L);
+  }
+
+  @Test
+  void deveRecusarTokenDeUsuarioQueNaoExisteMais() throws Exception {
+    when(provider.getIfAvailable()).thenReturn(consulta);
+    when(consulta.situacao(7L)).thenReturn(Optional.empty());
+
+    MockFilterChain chain = executar("Bearer " + jwtService.gerar(7L).token());
+
+    assertThat(chain.getRequest()).isNotNull();
+    assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+  }
+
+  @Test
+  void deveAceitarTokenEmitidoDepoisDaTrocaDeSenha() throws Exception {
+    when(provider.getIfAvailable()).thenReturn(consulta);
+    when(consulta.situacao(7L)).thenReturn(situacao(EMISSAO.minusSeconds(3600)));
+
+    executar("Bearer " + jwtService.gerar(7L).token());
+
+    assertThat(UsuarioLogado.id()).isEqualTo(7L);
+  }
+
+  private static Optional<SenhaAlteradaConsulta.SituacaoUsuario> situacao(Instant alteradaEm) {
+    return Optional.of(new SenhaAlteradaConsulta.SituacaoUsuario(alteradaEm));
   }
 }
