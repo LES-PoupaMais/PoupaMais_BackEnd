@@ -245,6 +245,13 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
 - `PUT /api/categorias/{id}` `{descricao}`
 - `PATCH /api/categorias/{id}/status` `{ativa: boolean}`
 - `DELETE /api/categorias/{id}` → `204`; se tiver lançamentos → `422` "Categoria vinculada a lançamentos, apenas inative"
+- Ordenação do `GET`: alfabética sem diferenciar maiúsculas; sem filtro, **ativas primeiro**. `PUT`/`PATCH` → `200 {id, descricao, ativa}`.
+  Descrição: trim, obrigatória, ≤ 255 (`400` no DTO; `422` se chegar ao service); duplicada no `PUT` → `409`; de outro usuário → `404`.
+- `CategoriaFacade` (implementada por `CategoriaServiceImpl`): `buscarPorIds(idUsuario, ids)` (ignora ids alheios/inexistentes, 1 consulta),
+  `validarAtivasDoUsuario(idUsuario, ids)` → **`404` "Categoria não encontrada"** se alguma não existir ou for de outro usuário (RN005)
+  e **`422`** se alguma estiver inativa, `buscarOuCriar(idUsuario, descricao)` (não reativa inativa), `criarPadroes(idUsuario)`.
+- O bloqueio do `DELETE` consulta `poupamais.categorias_lancamentos` por **query nativa** no `CategoriaRepository`
+  (o módulo `categoria` não pode depender de `lancamento`). Corrida no índice único `lower(descricao)` → `409`.
 
 **Lançamentos** (módulo `lancamento`, RF001–RF005, RF008 / UC001, UC002, UC004, UC010)
 
