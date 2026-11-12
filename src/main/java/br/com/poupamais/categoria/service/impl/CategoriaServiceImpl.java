@@ -116,6 +116,14 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
 
   @Override
   @Transactional(readOnly = true)
+  public List<CategoriaResumo> listarTodas(Long idUsuario) {
+    return repository.listarDoUsuario(idUsuario).stream()
+        .map(CategoriaServiceImpl::resumo)
+        .toList();
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public void validarAtivasDoUsuario(Long idUsuario, Collection<Long> ids) {
     if (ids == null || ids.isEmpty()) {
       return;

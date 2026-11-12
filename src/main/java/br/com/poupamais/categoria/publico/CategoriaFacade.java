@@ -18,6 +18,12 @@ public interface CategoriaFacade {
   List<CategoriaResumo> buscarPorIds(Long idUsuario, Collection<Long> ids);
 
   /**
+   * Todas as categorias do usuário, ativas e inativas (somente leitura): ativas primeiro, depois em
+   * ordem alfabética sem diferenciar maiúsculas. Usado pela exportação de dados do titular (RF016).
+   */
+  List<CategoriaResumo> listarTodas(Long idUsuario);
+
+  /**
    * Garante que todas as categorias existem, são do usuário e estão ativas.
    *
    * @throws br.com.poupamais.shared.exception.RecursoNaoEncontradoException (404) se alguma não
