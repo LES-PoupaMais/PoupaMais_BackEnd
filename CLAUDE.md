@@ -20,8 +20,9 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 - **`usuario`:** auth, perfil, foto, troca/recuperação de senha, exclusão de conta; `SenhaAlteradaConsulta` implementada
   (filtro recusa token de usuário excluído) e Swagger por `SWAGGER_HABILITADO`.
 - **`lancamento`:** CRUD, filtros (Specifications), status/lixeira e `LancamentoFacade` (ver "APIs públicas já prontas").
-- **`arquivo`** (✅ na `feat/arquivo`, aguardando PR): importação CSV, exportação CSV/XLSX (Strategy + Factory) e template; decisões em "Formato CSV".
-- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016), `dashboard` e deploy.
+- **`dashboard`** (✅ na `development`): `GET /api/dashboard` completo (RN003, RN008–RN010); ver "Decisões do módulo `dashboard`".
+- **`arquivo`** (✅ na `development`): importação CSV, exportação CSV/XLSX (Strategy + Factory) e template; decisões em "Formato CSV".
+- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016) e deploy.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
   1. **Configurar Infraestrutura Local** — `docker-compose.yml` + Flyway (schema aplicado ao subir a API).
@@ -185,6 +186,22 @@ Na raiz de `br.com.poupamais.lancamento`:
   A resposta traz `categorias: [{id, descricao}]` (sem `ativa`). O service da API devolve `LancamentoResumo`, não a entidade.
 - Repository com `@EntityGraph("categorias")` no `findAll(spec, sort)` e no `findByIdAndIdUsuario` (sem N+1). Filtro por categoria usa
   subconsulta `exists` (não duplica linhas). `descricao` escapa `%` e `_`.
+
+### Decisões do módulo `dashboard` (tomadas na implementação)
+
+- Estrutura: `ClassificacaoTaxa` (raiz) · `api/DashboardResource` + `dto/DashboardParams`, `dto/DashboardResponse` ·
+  `service/DashboardService` → `impl/DashboardServiceImpl`, `RateioCategorias` (RN009), `MensagemSaldoFactory` (RN010). Sem `model/`.
+  Por ser só leitura e agregação, o service devolve direto o `DashboardResponse` (sem mapper).
+- **Uma** chamada a `LancamentoFacade.listarAtivos(idUsuario, periodo.ultimos(4))` por requisição; o resto é calculado em memória.
+- `mes`/`ano` opcionais (o que faltar vem de `Periodo.atual()`, fuso de Brasília); fora de 1–12 / 2000–2100 ou não numérico → `400`
+  "Dados inválidos" com `erros[{campo, mensagem}]` ("O mês deve estar entre 1 e 12", "O ano deve estar entre 2000 e 2100").
+- `taxaGasto` = despesas × 100 / receitas com 2 casas (`HALF_UP`); a classificação usa a taxa **já arredondada** (70,004 → 70,00 → dentro).
+- Mensagens: saldo > 0 "Saldo positivo de R$ X em <Mês>"; saldo < 0 "As despesas superaram as receitas em R$ X em <Mês>" (X sem sinal);
+  **saldo zero com lançamentos** "Receitas e despesas se igualaram em <Mês>: saldo de R$ 0,00"; **mês sem lançamento ativo**
+  "Nenhum lançamento ativo em <Mês>". Moeda pt-BR `R$ 1.234,56` com espaço comum (não NBSP). Nunca recomenda investimento.
+- `despesasPorCategoria`: parte = valor / N truncada em centavos; a sobra vai para a categoria de **menor id**. Ordem: valor desc, empate
+  por `categoriaId` asc. Despesa sem categoria (não deveria existir) entra como `categoriaId: null`, "Sem categoria", para a soma fechar.
+- `maioresDespesas`: top 5 por valor desc; **empate: menor id primeiro** (o cadastrado antes). `categorias` = nomes em ordem de id.
 
 ## Design patterns (onde e por quê)
 
@@ -543,11 +560,12 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na `development` | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
 | 5 | `lancamento` | ✅ na `development` | `LancamentoFacade` exatamente como definida acima |
 | 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | depois de 4 e 5 | usa `LancamentoFacade.listarTodos` |
-| 7 | `dashboard` | depois de 5 | |
-| 8 | `arquivo` (importação, exportação, template) | ✅ na `feat/arquivo`, aguardando PR | `CategoriaFacade.buscarPorDescricao` adicionada (categoria inativa e RN002 sem criar antes da hora); decisões em "Formato CSV" |
+| 7 | `dashboard` | ✅ na `development` | — |
+| 8 | `arquivo` (importação, exportação, template) | ✅ na `development` | `CategoriaFacade.buscarPorDescricao` adicionada (categoria inativa e RN002 sem criar antes da hora); decisões em "Formato CSV" |
 | 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | ✅ na `development` | — |
 | 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | schema já resolvido pelo Flyway (aplica `db/migration` ao subir); falta Postgres em nuvem, variáveis e job de imagem |
-| 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `chore/flyway-docker`, aguardando PR | — |
+| 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `development` | — |
+| 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | pendente | avaliar criar categoria + lançamento na mesma transação, ou remover a categoria órfã |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
 **Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência
