@@ -22,9 +22,9 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 - **`lancamento`:** CRUD, filtros (Specifications), status/lixeira e `LancamentoFacade` (ver "APIs públicas já prontas").
 - **`dashboard`** (✅ na `development`): `GET /api/dashboard` completo (RN003, RN008–RN010); ver "Decisões do módulo `dashboard`".
 - **`arquivo`** (✅ na `development`): importação CSV, exportação CSV/XLSX (Strategy + Factory) e template; decisões em "Formato CSV".
-- **Exportação de dados do titular** (RF016, ✅ na branch `feat/exportacao-dados`, aguardando PR): `GET /api/usuarios/me/dados`;
-  estrutura do JSON no contrato "Perfil e privacidade".
-- **Próximo** (ver "Plano de entregas e pendências" no fim): deploy.
+- **Exportação de dados do titular** (RF016, ✅ na `development`): `GET /api/usuarios/me/dados`; estrutura do JSON no contrato "Perfil e privacidade".
+- **Escopo atual do backend: concluído.** Não há deploy: a apresentação e a entrega mostram o sistema **rodando localmente**
+  (`docker compose up -d --build`; ver "Demonstração local" no README). Próximo passo do projeto: o front (design novo + telas).
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
   1. **Configurar Infraestrutura Local** — `docker-compose.yml` + Flyway (schema aplicado ao subir a API).
@@ -33,7 +33,7 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
   4. **Camada de API** — DTOs, mappers, resources (cadastro, login, CRUD de lançamentos e categorias, dashboard).
   5. **Importação e Exportação em lote** — módulo `arquivo`.
   6. **Template CSV** (`template.csv`) — ver "Formato CSV".
-  7. **Deploy** — Postgres + API em nuvem (ex.: Render), variáveis de ambiente.
+  7. ~~**Deploy**~~ — fora do escopo (decisão de 12/11/2026): demonstração local com Docker.
 
 ## Stack
 
@@ -587,7 +587,7 @@ Arquivo: `.github/workflows/ci.yml` (mesmo desenho da pipeline do Previna, adapt
 - Rodar o mesmo localmente: skill `pipeline-local`.
 - **Regra da equipe:** PR só é integrado com o CI verde. Configurar no GitHub: Settings → Branches → proteção da `development` e da `main`
   exigindo o check "Testes e cobertura" e 1 aprovação.
-- Futuro (card de Deploy): job que constrói a imagem Docker e o deploy automático após o merge.
+- Sem deploy (decisão de 12/11/2026): não há job de imagem nem publicação; a entrega roda localmente com `docker compose`.
 
 ## Definição de pronto
 
@@ -619,15 +619,15 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 3 | `categoria` | ✅ na `development` | — |
 | 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na `development` | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
 | 5 | `lancamento` | ✅ na `development` | `LancamentoFacade` exatamente como definida acima |
-| 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | ✅ na branch `feat/exportacao-dados`, aguardando PR | usa `LancamentoFacade.listarTodos` e `CategoriaFacade.listarTodas` (nova, só leitura); estrutura do JSON no contrato. Pendente: replicar o contrato no `CLAUDE.md` do front |
+| 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | ✅ na `development` | usa `LancamentoFacade.listarTodos` e `CategoriaFacade.listarTodas` (nova, só leitura); estrutura do JSON no contrato. Pendente: replicar o contrato no `CLAUDE.md` do front |
 | 7 | `dashboard` | ✅ na `development` | — |
 | 8 | `arquivo` (importação, exportação, template) | ✅ na `development` | `CategoriaFacade.buscarPorDescricao` adicionada (categoria inativa e RN002 sem criar antes da hora); decisões em "Formato CSV" |
 | 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | ✅ na `development` | — |
-| 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | schema já resolvido pelo Flyway (aplica `db/migration` ao subir); falta Postgres em nuvem, variáveis e job de imagem |
+| 9 | Deploy | ❌ fora do escopo (12/11/2026) | apresentação e entrega rodando localmente com `docker compose up -d --build` |
 | 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `development` | — |
-| 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | ✅ na branch `fix/importacao-categoria-orfa`, aguardando PR | categorias novas + lançamento na mesma transação por linha (`TransactionOperations` no `arquivo`); ver "Formato CSV" |
-| 13 | Reorganização de pastas: `publico/` (`@NamedInterface`), `endpoints/` (+ `dto/`, `mappers/`), `model/` (`entidades/`, `repositories/`, `specifications/`) | ✅ na branch `refactor/estrutura-modulos`, aguardando PR | só organização; nenhuma regra ou contrato mudou |
-| 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | pendente | avaliar `spring.datasource.hikari.maximum-pool-size` pequeno nos testes ou uma classe base comum para reaproveitar o contexto |
+| 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | ✅ na `development` | categorias novas + lançamento na mesma transação por linha (`TransactionOperations` no `arquivo`); ver "Formato CSV" |
+| 13 | Reorganização de pastas: `publico/` (`@NamedInterface`), `endpoints/` (+ `dto/`, `mappers/`), `model/` (`entidades/`, `repositories/`, `specifications/`) | ✅ na `development` | só organização; nenhuma regra ou contrato mudou |
+| 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ na branch `chore/fechamento-backend`, aguardando PR | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
 **Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência
