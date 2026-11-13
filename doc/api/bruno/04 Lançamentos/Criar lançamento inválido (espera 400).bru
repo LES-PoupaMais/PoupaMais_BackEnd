@@ -1,0 +1,32 @@
+meta {
+  name: Criar lançamento inválido (espera 400)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/lancamentos
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "descricao": "",
+    "tipo": "DESPESA",
+    "mes": 13,
+    "ano": {{ano}},
+    "valor": 0,
+    "categoriaIds": []
+  }
+}
+
+tests {
+  test("Status esperado (400)", function () {
+    expect([400]).to.include(res.status);
+  });
+}
+
+docs {
+  Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`.
+}

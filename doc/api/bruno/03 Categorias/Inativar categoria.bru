@@ -1,0 +1,23 @@
+meta {
+  name: Inativar categoria
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/api/categorias/{{categoriaId}}/status
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "ativa": false
+  }
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Listar lixeira
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{baseUrl}}/api/lancamentos?status=DELETADO
+  body: none
+  auth: inherit
+}
+
+params:query {
+  status: DELETADO
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}

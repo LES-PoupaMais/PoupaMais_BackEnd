@@ -1,0 +1,38 @@
+meta {
+  name: Criar lançamento
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/lancamentos
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "descricao": "Supermercado",
+    "tipo": "DESPESA",
+    "mes": {{mes}},
+    "ano": {{ano}},
+    "valor": 680.00,
+    "categoriaIds": [{{categoriaId}}]
+  }
+}
+
+script:post-response {
+  if (res.status < 300) {
+    bru.setVar("lancamentoId", res.body.id);
+  }
+}
+
+tests {
+  test("Status esperado (201)", function () {
+    expect([201]).to.include(res.status);
+  });
+}
+
+docs {
+  Guarda o id em `lancamentoId`. `categoriaIds` aceita várias categorias.
+}

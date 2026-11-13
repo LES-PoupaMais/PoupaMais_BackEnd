@@ -1,0 +1,21 @@
+meta {
+  name: Baixar foto
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/api/usuarios/me/foto
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}
+
+docs {
+  Devolve a imagem. **404** se o usuário não tiver foto.
+}

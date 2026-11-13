@@ -1,0 +1,5 @@
+descricao;tipo;mes;ano;valor;categorias
+Salário mensal;RECEITA;11;2026;8500,00;Salário
+Aluguel;DESPESA;11;2026;2100,00;Moradia
+iFood — pedidos do mês;DESPESA;11;2026;420,00;Alimentação|Lazer
+Linha com mês inválido;DESPESA;13;2026;50,00;Outros

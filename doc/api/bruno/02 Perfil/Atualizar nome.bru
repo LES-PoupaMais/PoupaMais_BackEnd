@@ -1,0 +1,23 @@
+meta {
+  name: Atualizar nome
+  type: http
+  seq: 2
+}
+
+put {
+  url: {{baseUrl}}/api/usuarios/me
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "nome": "{{nome}}"
+  }
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}

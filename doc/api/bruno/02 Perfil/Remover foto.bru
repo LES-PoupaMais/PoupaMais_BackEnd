@@ -1,0 +1,17 @@
+meta {
+  name: Remover foto
+  type: http
+  seq: 6
+}
+
+delete {
+  url: {{baseUrl}}/api/usuarios/me/foto
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("Status esperado (204)", function () {
+    expect([204]).to.include(res.status);
+  });
+}
