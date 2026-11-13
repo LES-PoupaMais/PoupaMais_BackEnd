@@ -321,8 +321,8 @@ Fora de escopo (requisitos inversos): app nativo (RNI001), integração bancári
 
 Prefixo `/api`. JSON em camelCase. Header `Authorization: Bearer <token>`.
 
-**Coleções Bruno/Postman** com todos os endpoints: `doc/api/` (ver `doc/api/README.md`). Mudou endpoint, body ou status?
-Atualize `doc/api/gerar_colecoes.py` e rode `python3 doc/api/gerar_colecoes.py` no mesmo PR.
+**Coleções Bruno/Postman** com todos os endpoints: `doc/api/` (ver `doc/api/README.md`). **Todo endpoint novo entra nas duas
+coleções por padrão**, no mesmo PR (ver "Convenções"); o `ColecaoApiTest` reprova o build se faltar algum.
 
 **Auth / usuário** (módulo `usuario`)
 
@@ -552,6 +552,10 @@ Decisões da implementação (`feat/arquivo`):
 - Dinheiro com `BigDecimal` e `RoundingMode` sempre explícito.
 - Datas de auditoria: `dataCadastro` em `@PrePersist`; `dataAtualizacao` em todo update e troca de status.
 - Toda funcionalidade nasce **com testes** (ver "Testes"). Sem teste, não está pronta.
+- **Todo endpoint novo ou alterado entra por padrão nas coleções do Postman e do Bruno** (`doc/api/`), no mesmo PR: acrescente a
+  requisição (corpo de exemplo, status esperado e, se criar recurso, o script que guarda o id) na lista `REQUISICOES` de
+  `doc/api/gerar_colecoes.py` e rode `python3 doc/api/gerar_colecoes.py`. Nunca edite os arquivos gerados à mão.
+  O `ColecaoApiTest` compara os controllers com as duas coleções e falha se faltar endpoint ou sobrar um que não existe mais.
 - Git: **Gitflow**. Funcionalidade nova só entra assim: branch `feat/<card>` criada da `development` → PR para a **`development`** →
   depois PR de `development` para a **`main`** (release). Nunca PR de `feat/*` direto para a `main`, nem commit direto em `development`/`main`.
   Conventional Commits (`feat(lancamento): ...`, `fix(dashboard): ...`).
@@ -566,6 +570,7 @@ Três níveis obrigatórios, mais a verificação de arquitetura. Guia detalhado
 | **Web** | `XxxResourceTest` (`@WebMvcTest`) | Status HTTP, validação (400 + `erros[]`), 401 sem token, 404 para recurso de outro usuário | Nenhum |
 | **Integração** | `XxxIntegracaoTest` (`@SpringBootTest`) | O que só o banco prova: cascata da exclusão de conta, CHECK de status, FK `DEFERRABLE`, Specifications, importação ponta a ponta | **PostgreSQL real** |
 | **Arquitetura** | `ModularidadeTest` | Nenhum módulo acessa o interior de outro (Spring Modulith) | Nenhum |
+| **Coleções da API** | `ColecaoApiTest` | As coleções Postman e Bruno de `doc/api/` têm exatamente os endpoints dos controllers | Nenhum |
 
 - Integração roda só com `POUPAMAIS_TEST_DB_URL` definida (`@EnabledIfEnvironmentVariable`); no CI ela está **sempre** definida.
   Localmente: `docker compose up -d db-test` (porta 5433, nasce vazio; o Flyway cria o schema ao subir o contexto) e
@@ -596,6 +601,7 @@ Arquivo: `.github/workflows/ci.yml` (mesmo desenho da pipeline do Previna, adapt
 
 Nenhuma tarefa é dada como finalizada sem rodar o passo a passo **completo** da pipeline local (skill `pipeline-local`:
 `spotless:check`, `db-test` no ar, `verify` com os testes de integração rodando, `docker compose config -q`) com tudo verde.
+Mexeu em endpoint? As coleções de `doc/api/` foram atualizadas no mesmo PR (o `verify` roda o `ColecaoApiTest`).
 Se algum passo não rodou (Docker parado, rede, teste pulado), a tarefa **não está pronta**: diga exatamente o que faltou.
 
 ## Claude Code: skills e plugins
