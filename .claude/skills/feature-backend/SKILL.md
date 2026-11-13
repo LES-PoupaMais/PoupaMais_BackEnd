@@ -49,5 +49,9 @@ Pasta nova dentro de `publico/`? Crie o `package-info.java` dela com `@NamedInte
 ## 5. Fechar
 
 - Endpoint novo ou alterado → atualize o **contrato** no `CLAUDE.md` deste repo **e** no `../PoupaMais_FrontEnd/CLAUDE.md`.
+- Endpoint novo ou alterado → **inclua nas coleções do Postman e do Bruno** (padrão para todo endpoint): adicione a requisição
+  em `REQUISICOES` de `doc/api/gerar_colecoes.py` (corpo de exemplo, status esperado, script que guarda o id se criar recurso)
+  e rode `python3 doc/api/gerar_colecoes.py`. O `ColecaoApiTest` reprova o `verify` se faltar. Com a API no ar, confira com
+  `npx newman run doc/api/postman/PoupaMais.postman_collection.json --working-dir doc/api`.
 - **Definição de pronto:** rode o passo a passo completo da skill `pipeline-local` (os mesmos passos do CI) com tudo verde.
   Se algum passo não rodou ou algum teste de integração foi pulado, a tarefa não está pronta.
