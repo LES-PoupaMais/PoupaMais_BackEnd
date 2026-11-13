@@ -1,0 +1,27 @@
+meta {
+  name: Excluir minha conta
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/usuarios/me/excluir
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "senha": "{{senha}}"
+  }
+}
+
+tests {
+  test("Status esperado (204)", function () {
+    expect([204]).to.include(res.status);
+  });
+}
+
+docs {
+  **Irreversível**: apaga o usuário e todos os dados dele. Fica por último de propósito; depois dela, rode o Cadastro de novo.
+}

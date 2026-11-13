@@ -1,0 +1,27 @@
+meta {
+  name: Pedir link de redefinição
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/auth/recuperar-senha
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "email": "{{email}}"
+  }
+}
+
+tests {
+  test("Status esperado (202)", function () {
+    expect([202]).to.include(res.status);
+  });
+}
+
+docs {
+  Sempre 202, exista ou não o e-mail. O e-mail chega no Mailpit: http://localhost:8025
+}

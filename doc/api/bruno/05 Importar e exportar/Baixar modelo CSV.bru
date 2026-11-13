@@ -1,0 +1,17 @@
+meta {
+  name: Baixar modelo CSV
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/lancamentos/template-csv
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}

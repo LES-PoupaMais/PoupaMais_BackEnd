@@ -1,0 +1,23 @@
+meta {
+  name: Ativar lançamento
+  type: http
+  seq: 8
+}
+
+patch {
+  url: {{baseUrl}}/api/lancamentos/{{lancamentoId}}/status
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "status": "ATIVO"
+  }
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}

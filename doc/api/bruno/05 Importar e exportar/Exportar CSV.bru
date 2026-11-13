@@ -1,0 +1,31 @@
+meta {
+  name: Exportar CSV
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/lancamentos/exportar?formato=csv
+  body: none
+  auth: inherit
+}
+
+params:query {
+  formato: csv
+  ~descricao: 
+  ~mes: {{mes}}
+  ~ano: {{ano}}
+  ~tipo: DESPESA
+  ~status: ATIVO
+  ~categoriaId: {{categoriaId}}
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}
+
+docs {
+  Usa os mesmos filtros da listagem. No Postman, use *Send and Download* para salvar o arquivo.
+}

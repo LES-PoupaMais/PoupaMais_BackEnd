@@ -1,0 +1,17 @@
+meta {
+  name: Baixar meus dados
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/usuarios/me/dados
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}

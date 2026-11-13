@@ -1,0 +1,26 @@
+meta {
+  name: Dashboard do mês
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/api/dashboard?mes={{mes}}&ano={{ano}}
+  body: none
+  auth: inherit
+}
+
+params:query {
+  mes: {{mes}}
+  ano: {{ano}}
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}
+
+docs {
+  Sem `mes`/`ano` usa o mês atual. Só considera lançamentos ATIVOS.
+}

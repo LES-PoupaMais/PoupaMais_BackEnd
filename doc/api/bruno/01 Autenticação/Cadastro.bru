@@ -1,0 +1,30 @@
+meta {
+  name: Cadastro
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/auth/cadastro
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "nome": "{{nome}}",
+    "email": "{{email}}",
+    "senha": "{{senha}}",
+    "aceiteTermos": true
+  }
+}
+
+tests {
+  test("Status esperado (201, 409)", function () {
+    expect([201, 409]).to.include(res.status);
+  });
+}
+
+docs {
+  Cria o usuário das variáveis `email`/`senha`. **409** se o e-mail já existir (normal ao rodar de novo).
+}

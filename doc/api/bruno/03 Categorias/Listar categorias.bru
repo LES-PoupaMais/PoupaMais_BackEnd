@@ -1,0 +1,25 @@
+meta {
+  name: Listar categorias
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/api/categorias
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~ativa: true
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}
+
+docs {
+  Sem `ativa` lista todas; `ativa=true` ou `false` filtra.
+}

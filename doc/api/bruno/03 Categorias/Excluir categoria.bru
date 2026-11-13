@@ -1,0 +1,21 @@
+meta {
+  name: Excluir categoria
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/api/categorias/{{categoriaTempId}}
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("Status esperado (204)", function () {
+    expect([204]).to.include(res.status);
+  });
+}
+
+docs {
+  Só exclui categoria sem lançamentos (**422** se estiver vinculada).
+}

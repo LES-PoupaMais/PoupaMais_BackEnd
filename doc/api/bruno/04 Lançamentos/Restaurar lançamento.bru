@@ -1,0 +1,21 @@
+meta {
+  name: Restaurar lançamento
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{baseUrl}}/api/lancamentos/{{lancamentoId}}/restaurar
+  body: none
+  auth: inherit
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}
+
+docs {
+  Volta como INATIVO.
+}

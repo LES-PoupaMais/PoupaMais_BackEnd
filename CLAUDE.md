@@ -321,6 +321,9 @@ Fora de escopo (requisitos inversos): app nativo (RNI001), integração bancári
 
 Prefixo `/api`. JSON em camelCase. Header `Authorization: Bearer <token>`.
 
+**Coleções Bruno/Postman** com todos os endpoints: `doc/api/` (ver `doc/api/README.md`). Mudou endpoint, body ou status?
+Atualize `doc/api/gerar_colecoes.py` e rode `python3 doc/api/gerar_colecoes.py` no mesmo PR.
+
 **Auth / usuário** (módulo `usuario`)
 
 - `POST /api/auth/cadastro` `{nome, email, senha, aceiteTermos: true}` → `201` `{id, nome, email}` · e-mail duplicado → `409` · sem aceite → `400` (RF009, RF015)
