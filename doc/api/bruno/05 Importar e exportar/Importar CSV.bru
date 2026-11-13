@@ -1,0 +1,25 @@
+meta {
+  name: Importar CSV
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/lancamentos/importar
+  body: multipartForm
+  auth: inherit
+}
+
+body:multipart-form {
+  arquivo: @file(../exemplos/lancamentos-exemplo.csv)
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}
+
+docs {
+  Multipart, campo `arquivo`. O exemplo tem uma linha inválida: a resposta lista `importados`, `falhas[{linha, conteudo, motivo}]` e `categoriasCriadas`.
+}

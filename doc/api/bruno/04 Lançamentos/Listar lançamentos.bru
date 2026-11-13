@@ -1,0 +1,30 @@
+meta {
+  name: Listar lançamentos
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/api/lancamentos
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~descricao: 
+  ~mes: {{mes}}
+  ~ano: {{ano}}
+  ~tipo: DESPESA
+  ~status: ATIVO
+  ~categoriaId: {{categoriaId}}
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}
+
+docs {
+  Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira.
+}

@@ -1,0 +1,25 @@
+meta {
+  name: Enviar foto
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/api/usuarios/me/foto
+  body: multipartForm
+  auth: inherit
+}
+
+body:multipart-form {
+  foto: @file(../exemplos/foto-exemplo.png)
+}
+
+tests {
+  test("Status esperado (204)", function () {
+    expect([204]).to.include(res.status);
+  });
+}
+
+docs {
+  Multipart, campo `foto`. JPG, PNG ou WEBP até 2 MB.
+}

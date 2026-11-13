@@ -1,0 +1,23 @@
+meta {
+  name: Editar categoria
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}/api/categorias/{{categoriaId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "descricao": "Supermercado {{$timestamp}}"
+  }
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}

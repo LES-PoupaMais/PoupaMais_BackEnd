@@ -1,0 +1,28 @@
+meta {
+  name: Editar lançamento
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/api/lancamentos/{{lancamentoId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "descricao": "Supermercado do mês",
+    "tipo": "DESPESA",
+    "mes": {{mes}},
+    "ano": {{ano}},
+    "valor": 720.50,
+    "categoriaIds": [{{categoriaId}}]
+  }
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}

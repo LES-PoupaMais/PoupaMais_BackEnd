@@ -1,0 +1,33 @@
+meta {
+  name: Criar categoria
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/categorias
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "descricao": "Mercado {{$timestamp}}"
+  }
+}
+
+script:post-response {
+  if (res.status < 300) {
+    bru.setVar("categoriaId", res.body.id);
+  }
+}
+
+tests {
+  test("Status esperado (201)", function () {
+    expect([201]).to.include(res.status);
+  });
+}
+
+docs {
+  Guarda o id em `categoriaId`. **409** se já existir uma com a mesma descrição (sem diferenciar maiúsculas).
+}

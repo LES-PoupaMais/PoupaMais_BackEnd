@@ -1,0 +1,37 @@
+meta {
+  name: Trocar senha
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{baseUrl}}/api/usuarios/me/senha
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "senhaAtual": "{{senha}}",
+    "novaSenha": "{{novaSenha}}"
+  }
+}
+
+script:post-response {
+  if (res.status < 300) {
+    bru.setVar("token", res.body.token);
+    const antiga = bru.getEnvVar("senha");
+    bru.setEnvVar("senha", bru.getEnvVar("novaSenha"));
+    bru.setEnvVar("novaSenha", antiga);
+  }
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}
+
+docs {
+  Devolve um token novo (guardado em `token`) e inverte as variáveis `senha` e `novaSenha`, para a coleção continuar funcionando. **422** se a senha atual estiver errada ou a nova for igual.
+}
