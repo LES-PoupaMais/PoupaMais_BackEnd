@@ -72,6 +72,16 @@ docker compose up -d db mailpit    # PostgreSQL + Mailpit
 - Resetar o banco de desenvolvimento (apaga os dados): `docker compose down -v && docker compose up -d --build`
   (ou `docker compose up -d db` e `./mvnw spring-boot:run`).
 
+## Demonstração local
+
+Não há deploy: a apresentação roda na máquina, com Docker.
+
+1. `docker compose down -v && docker compose up -d --build` — banco zerado, schema criado pelo Flyway, API em http://localhost:8080.
+2. Confira a API no Swagger (http://localhost:8080/swagger-ui.html) e os e-mails no Mailpit (http://localhost:8025).
+3. Suba o front (ver o README do `PoupaMais_FrontEnd`) apontando `API_URL=http://localhost:8080`.
+4. Roteiro: criar categoria → lançamento com duas categorias → importar CSV com uma linha inválida (modelo em
+   `GET /api/lancamentos/template-csv`) → filtrar e inativar → dashboard → exportar.
+
 ## Testes
 
 ```bash
