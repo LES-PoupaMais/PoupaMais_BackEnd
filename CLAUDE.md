@@ -22,7 +22,9 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 - **`lancamento`:** CRUD, filtros (Specifications), status/lixeira e `LancamentoFacade` (ver "APIs públicas já prontas").
 - **`dashboard`** (✅ na `development`): `GET /api/dashboard` completo (RN003, RN008–RN010); ver "Decisões do módulo `dashboard`".
 - **`arquivo`** (✅ na `development`): importação CSV, exportação CSV/XLSX (Strategy + Factory) e template; decisões em "Formato CSV".
-- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016) e deploy.
+- **Exportação de dados do titular** (RF016, ✅ na branch `feat/exportacao-dados`, aguardando PR): `GET /api/usuarios/me/dados`;
+  estrutura do JSON no contrato "Perfil e privacidade".
+- **Próximo** (ver "Plano de entregas e pendências" no fim): deploy.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
   1. **Configurar Infraestrutura Local** — `docker-compose.yml` + Flyway (schema aplicado ao subir a API).
@@ -116,7 +118,8 @@ br.com.poupamais
 ├── categoria/   publico/ (CategoriaFacade · dto/CategoriaResumo) · endpoints/ (+ dto/, mappers/) · service/ (+ impl/) ·
 │                model/ (entidades/Categoria · repositories/CategoriaRepository)
 ├── usuario/     endpoints/ (AuthResource, PerfilResource, PrivacidadeResource + dto/, mappers/UsuarioMapper) ·
-│                service/ (+ impl/, inclui SessaoUsuarioConsulta) · model/ (entidades/ · repositories/) · sem publico/
+│                service/ (+ impl/, inclui SessaoUsuarioConsulta, ExportacaoDadosServiceImpl) · model/ (entidades/ ·
+│                repositories/) · sem publico/
 ├── notificacao/ publico/ (EmailFacade · excecoes/EnvioEmailException) · service/impl/SmtpEmailService ·
 │                templates em src/main/resources/templates/email/
 ├── dashboard/   endpoints/ (+ dto/) · service/ (ClassificacaoTaxa, RateioCategorias, MensagemSaldoFactory + impl/) ·
@@ -159,7 +162,7 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 | `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401 | Mensagens em português prontas para o usuário. |
 | `notificacao.publico.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.publico.excecoes.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
 | `lancamento.publico.LancamentoFacade` | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records em `publico.dto` (`LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`); enums em `publico.enums` (`TipoLancamento`, `StatusLancamento`) | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
-| `categoria.publico.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarPorDescricao(idUsuario, descricao)` (Optional, não cria), `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `publico.dto.CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. |
+| `categoria.publico.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `listarTodas(idUsuario)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarPorDescricao(idUsuario, descricao)` (Optional, não cria), `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `publico.dto.CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. `listarTodas`: somente leitura, ativas e inativas (ativas primeiro, depois alfabética), usada pela exportação de dados (RF016). |
 
 ### API pública do módulo `lancamento` (✅ implementada; `dashboard`, `arquivo` e `usuario` usam exatamente isto)
 
@@ -354,10 +357,49 @@ Detalhes do `usuario` (decididos):
 - `GET /api/usuarios/me/foto` → bytes da imagem (`Content-Type` correto, `Cache-Control: no-cache`) · sem foto → `404`
 - `PUT /api/usuarios/me/foto` (multipart, campo `foto`) → `204` · tipo/tamanho inválido → `422`
 - `DELETE /api/usuarios/me/foto` → `204`
-- `GET /api/usuarios/me/dados` → arquivo `meus-dados-poupamais.json` (RF016)
+- `GET /api/usuarios/me/dados` → arquivo `meus-dados-poupamais.json` (RF016, RN016; estrutura abaixo)
 - `POST /api/usuarios/me/excluir` `{senha}` → `204` (RF017) · senha errada → `422`. É POST porque DELETE com body não é confiável em proxies.
 
 Rotas públicas: `cadastro`, `login`, `recuperar-senha`, `redefinir-senha`.
+
+Exportação de dados do titular (`GET /api/usuarios/me/dados`, decidido em `feat/exportacao-dados`):
+- `200` com `Content-Type: application/json` e `Content-Disposition: attachment; filename="meus-dados-poupamais.json"`; sem token → `401`.
+- camelCase; datas `LocalDate` como `"AAAA-MM-DD"` e instantes ISO-8601 em UTC (`"2026-11-12T18:00:00Z"`); `geradoEm` truncado em segundos.
+- `perfil` traz **só** `id, nome, email, dataCadastro, aceiteTermosEm, possuiFoto`: nunca senha/hash, `senhaAlteradaEm` nem tokens.
+  **A foto não vai no JSON** (só `possuiFoto`): imagem em Base64 incharia o arquivo e ela já pode ser baixada em `GET /api/usuarios/me/foto`.
+- `categorias`: **todas** do usuário (ativas e inativas), ativas primeiro e depois alfabética (`CategoriaFacade.listarTodas`).
+- `lancamentos`: **todos** os status (ATIVO, INATIVO e DELETADO), ordem ano/mês/id desc (`LancamentoFacade.listarTodos`), mesmo
+  formato da response de lançamento (`categorias: [{id, descricao}]`). Usuário sem lançamentos → `[]` (não é erro, ao contrário do RN013).
+- Só leitura e agregação: o `ExportacaoDadosServiceImpl` devolve direto o `DadosTitularResponse` (sem mapper), como o dashboard.
+
+```json
+{
+  "geradoEm": "2026-11-12T18:00:00Z",
+  "perfil": {
+    "id": 7,
+    "nome": "Ana",
+    "email": "ana@email.com",
+    "dataCadastro": "2026-11-01",
+    "aceiteTermosEm": "2026-11-01T10:00:00Z",
+    "possuiFoto": false
+  },
+  "categorias": [{ "id": 3, "descricao": "Lazer", "ativa": true }],
+  "lancamentos": [
+    {
+      "id": 9,
+      "descricao": "Cinema",
+      "tipo": "DESPESA",
+      "mes": 8,
+      "ano": 2026,
+      "valor": 45.9,
+      "status": "DELETADO",
+      "categorias": [{ "id": 3, "descricao": "Lazer" }],
+      "dataCadastro": "2026-08-02",
+      "dataAtualizacao": "2026-08-03"
+    }
+  ]
+}
+```
 
 **Categorias** (módulo `categoria`, RF011 / UC009). Não há tela própria no front: criar e editar são feitos por modais abertos
 no dropdown de categorias do formulário de lançamento. Por isso o `POST` devolve a categoria criada, que o front já seleciona.
@@ -370,6 +412,7 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
 - Ordenação do `GET`: alfabética sem diferenciar maiúsculas; sem filtro, **ativas primeiro**. `PUT`/`PATCH` → `200 {id, descricao, ativa}`.
   Descrição: trim, obrigatória, ≤ 255 (`400` no DTO; `422` se chegar ao service); duplicada no `PUT` → `409`; de outro usuário → `404`.
 - `CategoriaFacade` (implementada por `CategoriaServiceImpl`): `buscarPorIds(idUsuario, ids)` (ignora ids alheios/inexistentes, 1 consulta),
+  `listarTodas(idUsuario)` (ativas e inativas, mesma ordem do `GET` sem filtro),
   `validarAtivasDoUsuario(idUsuario, ids)` → **`404` "Categoria não encontrada"** se alguma não existir ou for de outro usuário (RN005)
   e **`422`** se alguma estiver inativa, `buscarOuCriar(idUsuario, descricao)` (não reativa inativa), `criarPadroes(idUsuario)`.
 - O bloqueio do `DELETE` consulta `poupamais.categorias_lancamentos` por **query nativa** no `CategoriaRepository`
@@ -576,7 +619,7 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 3 | `categoria` | ✅ na `development` | — |
 | 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na `development` | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
 | 5 | `lancamento` | ✅ na `development` | `LancamentoFacade` exatamente como definida acima |
-| 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | depois de 4 e 5 | usa `LancamentoFacade.listarTodos` |
+| 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | ✅ na branch `feat/exportacao-dados`, aguardando PR | usa `LancamentoFacade.listarTodos` e `CategoriaFacade.listarTodas` (nova, só leitura); estrutura do JSON no contrato. Pendente: replicar o contrato no `CLAUDE.md` do front |
 | 7 | `dashboard` | ✅ na `development` | — |
 | 8 | `arquivo` (importação, exportação, template) | ✅ na `development` | `CategoriaFacade.buscarPorDescricao` adicionada (categoria inativa e RN002 sem criar antes da hora); decisões em "Formato CSV" |
 | 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | ✅ na `development` | — |
@@ -584,7 +627,7 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `development` | — |
 | 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | ✅ na branch `fix/importacao-categoria-orfa`, aguardando PR | categorias novas + lançamento na mesma transação por linha (`TransactionOperations` no `arquivo`); ver "Formato CSV" |
 | 13 | Reorganização de pastas: `publico/` (`@NamedInterface`), `endpoints/` (+ `dto/`, `mappers/`), `model/` (`entidades/`, `repositories/`, `specifications/`) | ✅ na branch `refactor/estrutura-modulos`, aguardando PR | só organização; nenhuma regra ou contrato mudou |
-| 14 | Pendência (testes): cada contexto de `@SpringBootTest` em cache mantém um pool Hikari de 10 conexões (~70 no `verify`); duas pipelines locais ao mesmo tempo no `db-test` compartilhado passam do `max_connections=100` ("too many clients") | pendente | avaliar `spring.datasource.hikari.maximum-pool-size`/`minimum-idle` menores no perfil de teste |
+| 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | pendente | avaliar `spring.datasource.hikari.maximum-pool-size` pequeno nos testes ou uma classe base comum para reaproveitar o contexto |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
 **Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência

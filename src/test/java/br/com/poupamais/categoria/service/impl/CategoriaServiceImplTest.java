@@ -286,4 +286,16 @@ class CategoriaServiceImplTest {
             "Transporte",
             "Vestuário");
   }
+
+  @Test
+  void listarTodasDeveDevolverAtivasEInativasDoUsuarioComoResumo() {
+    when(repository.listarDoUsuario(USUARIO))
+        .thenReturn(List.of(categoria(1L, "Lazer", true), categoria(2L, "Antiga", false)));
+
+    List<CategoriaResumo> todas = service.listarTodas(USUARIO);
+
+    assertThat(todas)
+        .containsExactly(
+            new CategoriaResumo(1L, "Lazer", true), new CategoriaResumo(2L, "Antiga", false));
+  }
 }
