@@ -1,8 +1,8 @@
 /**
  * Envio de e-mails transacionais (RNF020).
  *
- * <p>API pública = classes na raiz deste pacote (Facade, records e enums). Os subpacotes {@code
- * api}, {@code service} e {@code model} são internos. Ver CLAUDE.md.
+ * <p>API pública = só a pasta {@code publico} (e subpastas, cada uma com {@code @NamedInterface}),
+ * quando existir. {@code endpoints}, {@code service} e {@code model} são internos. Ver CLAUDE.md.
  */
 @ApplicationModule(displayName = "Notificação")
 package br.com.poupamais.notificacao;

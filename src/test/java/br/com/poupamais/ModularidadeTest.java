@@ -4,8 +4,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.modulith.core.ApplicationModules;
 
 /**
- * Garante as fronteiras do monólito modular: nenhum módulo acessa api/, service/ ou model/ de
- * outro, e não há dependência cíclica entre módulos.
+ * Garante as fronteiras do monólito modular: um módulo só usa a pasta publico/ de outro (nunca
+ * endpoints/, service/ ou model/), e cada subpasta de publico/ precisa do próprio @NamedInterface;
+ * e não há dependência cíclica entre módulos.
  */
 class ModularidadeTest {
 

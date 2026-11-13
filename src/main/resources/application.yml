@@ -11,11 +11,17 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      # O schema vem do docker/init.sql (DDL oficial); o Hibernate só confere
+      # O schema vem das migrações do Flyway (db/migration); o Hibernate só confere
       ddl-auto: validate
     properties:
       hibernate:
         default_schema: poupamais
+
+  # Flyway cria o schema poupamais e aplica db/migration ao subir (histórico em poupamais.flyway_schema_history)
+  flyway:
+    schemas: poupamais
+    default-schema: poupamais
+    create-schemas: true
 
   servlet:
     multipart:

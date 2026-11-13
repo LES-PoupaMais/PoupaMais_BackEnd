@@ -1,9 +1,9 @@
 package br.com.poupamais.categoria.service.impl;
 
-import br.com.poupamais.categoria.CategoriaFacade;
-import br.com.poupamais.categoria.CategoriaResumo;
-import br.com.poupamais.categoria.model.Categoria;
-import br.com.poupamais.categoria.model.CategoriaRepository;
+import br.com.poupamais.categoria.model.entidades.Categoria;
+import br.com.poupamais.categoria.model.repositories.CategoriaRepository;
+import br.com.poupamais.categoria.publico.CategoriaFacade;
+import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.categoria.service.CategoriaService;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -115,6 +116,14 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
 
   @Override
   @Transactional(readOnly = true)
+  public List<CategoriaResumo> listarTodas(Long idUsuario) {
+    return repository.listarDoUsuario(idUsuario).stream()
+        .map(CategoriaServiceImpl::resumo)
+        .toList();
+  }
+
+  @Override
+  @Transactional(readOnly = true)
   public void validarAtivasDoUsuario(Long idUsuario, Collection<Long> ids) {
     if (ids == null || ids.isEmpty()) {
       return;
@@ -135,6 +144,17 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
         .ifPresent(c -> {
           throw new RegraNegocioException(MSG_INATIVA.formatted(c.getDescricao()));
         });
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Optional<CategoriaResumo> buscarPorDescricao(Long idUsuario, String descricao) {
+    if (descricao == null || descricao.isBlank()) {
+      return Optional.empty();
+    }
+    return repository
+        .findByIdUsuarioAndDescricaoIgnoreCase(idUsuario, descricao.strip())
+        .map(CategoriaServiceImpl::resumo);
   }
 
   @Override

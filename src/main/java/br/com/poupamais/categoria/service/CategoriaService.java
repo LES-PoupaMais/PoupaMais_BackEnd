@@ -1,6 +1,6 @@
 package br.com.poupamais.categoria.service;
 
-import br.com.poupamais.categoria.model.Categoria;
+import br.com.poupamais.categoria.model.entidades.Categoria;
 import java.util.List;
 
 /** Regras de categoria usadas pela API (RF011, RN002, RN005). */

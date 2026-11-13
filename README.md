@@ -35,18 +35,29 @@ br.com.poupamais
 └── notificacao   envio de e-mails
 ```
 
-Cada módulo expõe apenas uma Facade pública; `api` (controllers e DTOs), `service` e `model` são internos.
+Cada módulo expõe só a pasta `publico/` (Facade, DTOs, enums e exceções públicas, marcada com `@NamedInterface`); `endpoints/`
+(controllers, DTOs e mappers), `service/` e `model/` (`entidades/`, `repositories/`, `specifications/`) são internos.
 As fronteiras são verificadas automaticamente pelo Spring Modulith (`ModularidadeTest`).
 Padrões usados: Facade, DTO + Mapper, Repository, Specification, Strategy + Factory, Validator, Value Object e Exception Handler central.
 
 ## Como rodar
 
-Pré-requisitos: **JDK 21+** e **Docker**. O Maven vem no wrapper (`./mvnw`).
+O schema do banco é criado pelo **Flyway** quando a API sobe (migrações em `src/main/resources/db/migration`).
+
+**Opção 1 — só Docker** (não precisa de JDK):
 
 ```bash
-cp .env.example .env               # ajuste se quiser (os valores padrão servem para desenvolvimento)
-docker compose up -d db mailpit    # PostgreSQL (schema criado pelo docker/init.sql) + Mailpit
-./mvnw spring-boot:run             # API em http://localhost:8080
+cp .env.example .env               # opcional: os valores padrão servem para desenvolvimento
+docker compose up -d --build       # PostgreSQL + Mailpit + API em http://localhost:8080
+docker compose logs -f api         # acompanhar a API
+docker compose down                # parar (mantém os dados)
+```
+
+**Opção 2 — Docker para a infra + API no Maven** (para desenvolver; pré-requisito **JDK 21+**, o Maven vem no wrapper):
+
+```bash
+docker compose up -d db mailpit    # PostgreSQL + Mailpit
+./mvnw spring-boot:run             # API em http://localhost:8080 (o Flyway aplica as migrações)
 ```
 
 | Endereço | O que é |
@@ -54,7 +65,22 @@ docker compose up -d db mailpit    # PostgreSQL (schema criado pelo docker/init.
 | http://localhost:8080/swagger-ui.html | Documentação interativa da API |
 | http://localhost:8025 | Mailpit: caixa de entrada dos e-mails enviados em desenvolvimento |
 
-> O `docker/init.sql` só roda com o volume vazio. Se o schema mudar: `docker compose down -v && docker compose up -d db`.
+### Banco de dados: migrações e reset
+
+- Mudança de banco = **nova migração** `src/main/resources/db/migration/V<n>__descricao.sql` (ex.: `V2__adiciona_meta.sql`);
+  ela é aplicada na próxima subida da API. **Nunca edite uma migração já aplicada**, só adicione novas.
+- Resetar o banco de desenvolvimento (apaga os dados): `docker compose down -v && docker compose up -d --build`
+  (ou `docker compose up -d db` e `./mvnw spring-boot:run`).
+
+## Demonstração local
+
+Não há deploy: a apresentação roda na máquina, com Docker.
+
+1. `docker compose down -v && docker compose up -d --build` — banco zerado, schema criado pelo Flyway, API em http://localhost:8080.
+2. Confira a API no Swagger (http://localhost:8080/swagger-ui.html) e os e-mails no Mailpit (http://localhost:8025).
+3. Suba o front (ver o README do `PoupaMais_FrontEnd`) apontando `API_URL=http://localhost:8080`.
+4. Roteiro: criar categoria → lançamento com duas categorias → importar CSV com uma linha inválida (modelo em
+   `GET /api/lancamentos/template-csv`) → filtrar e inativar → dashboard → exportar.
 
 ## Testes
 

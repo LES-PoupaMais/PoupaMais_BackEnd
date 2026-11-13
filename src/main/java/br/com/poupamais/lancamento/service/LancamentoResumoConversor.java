@@ -1,9 +1,9 @@
 package br.com.poupamais.lancamento.service;
 
-import br.com.poupamais.categoria.CategoriaFacade;
-import br.com.poupamais.categoria.CategoriaResumo;
-import br.com.poupamais.lancamento.LancamentoResumo;
-import br.com.poupamais.lancamento.model.Lancamento;
+import br.com.poupamais.categoria.publico.CategoriaFacade;
+import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
+import br.com.poupamais.lancamento.model.entidades.Lancamento;
+import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;

@@ -1,0 +1,50 @@
+package br.com.poupamais.usuario.endpoints;
+
+import br.com.poupamais.shared.security.UsuarioLogado;
+import br.com.poupamais.usuario.endpoints.dto.DadosTitularResponse;
+import br.com.poupamais.usuario.endpoints.dto.ExcluirContaRequest;
+import br.com.poupamais.usuario.service.ExportacaoDadosService;
+import br.com.poupamais.usuario.service.PrivacidadeService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+/** LGPD (RF015–RF017): exportação dos dados do titular e exclusão de conta. */
+@RestController
+@RequestMapping("/api/usuarios/me")
+@RequiredArgsConstructor
+public class PrivacidadeResource {
+
+  static final String ARQUIVO_DADOS = "meus-dados-poupamais.json";
+
+  private final PrivacidadeService service;
+  private final ExportacaoDadosService exportacaoService;
+
+  /** RF016/RN016: baixa um JSON com perfil, categorias e todos os lançamentos. */
+  @GetMapping("/dados")
+  public ResponseEntity<DadosTitularResponse> exportarDados() {
+    return ResponseEntity.ok()
+        .header(
+            HttpHeaders.CONTENT_DISPOSITION,
+            ContentDisposition.attachment().filename(ARQUIVO_DADOS).build().toString())
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(exportacaoService.exportar(UsuarioLogado.id()));
+  }
+
+  /** POST porque DELETE com body não é confiável em proxies. */
+  @PostMapping("/excluir")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void excluirConta(@Valid @RequestBody ExcluirContaRequest request) {
+    service.excluirConta(UsuarioLogado.id(), request.senha());
+  }
+}

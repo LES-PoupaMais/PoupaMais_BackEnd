@@ -13,23 +13,27 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 
 - **Fonte da verdade:** este `CLAUDE.md`. Os `.md` do DVP em `../Documentação/md/` são uma versão anterior; se divergirem, vale este arquivo.
 - **Pronto na `development`:**
-  - Fundação: Spring Boot 4.1.2, Spring Modulith 2.1.2, `docker-compose.yml` (db, db-test, mailpit), `docker/init.sql` (6 tabelas), JaCoCo, Spotless.
+  - Fundação: Spring Boot 4.1.2, Spring Modulith 2.1.2, `docker-compose.yml` (db, db-test, mailpit, api), Flyway (`db/migration`, 6 tabelas), `Dockerfile`, JaCoCo, Spotless.
   - `shared`: exceções + `GlobalExceptionHandler`, `Periodo`, `WebConfiguration` e **segurança JWT completa** (`shared.security`).
   - `notificacao`: `EmailFacade` (e-mail de recuperação de senha via SMTP).
   - `categoria`: CRUD completo + `CategoriaFacade`.
 - **`usuario`:** auth, perfil, foto, troca/recuperação de senha, exclusão de conta; `SenhaAlteradaConsulta` implementada
   (filtro recusa token de usuário excluído) e Swagger por `SWAGGER_HABILITADO`.
 - **`lancamento`:** CRUD, filtros (Specifications), status/lixeira e `LancamentoFacade` (ver "APIs públicas já prontas").
-- **Próximo** (ver "Plano de entregas e pendências" no fim): exportação de dados (RF016), `dashboard`, `arquivo`, correção da rota inexistente (500 → 404) e deploy.
+- **`dashboard`** (✅ na `development`): `GET /api/dashboard` completo (RN003, RN008–RN010); ver "Decisões do módulo `dashboard`".
+- **`arquivo`** (✅ na `development`): importação CSV, exportação CSV/XLSX (Strategy + Factory) e template; decisões em "Formato CSV".
+- **Exportação de dados do titular** (RF016, ✅ na `development`): `GET /api/usuarios/me/dados`; estrutura do JSON no contrato "Perfil e privacidade".
+- **Escopo atual do backend: concluído.** Não há deploy: a apresentação e a entrega mostram o sistema **rodando localmente**
+  (`docker compose up -d --build`; ver "Demonstração local" no README). Próximo passo do projeto: o front (design novo + telas).
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 - Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
-  1. **Configurar Infraestrutura Local** — `docker-compose.yml` + `init.sql` (Postgres sobe com o schema pronto).
+  1. **Configurar Infraestrutura Local** — `docker-compose.yml` + Flyway (schema aplicado ao subir a API).
   2. **Camada de Domínio** — entidades JPA, enums, repositories, exceptions + handler global (módulo `shared` + `model` de cada módulo).
   3. **Serviços e Segurança** — services (interface + `impl`), `JwtService`, `SecurityConfiguration`, `WebConfiguration`.
   4. **Camada de API** — DTOs, mappers, resources (cadastro, login, CRUD de lançamentos e categorias, dashboard).
   5. **Importação e Exportação em lote** — módulo `arquivo`.
   6. **Template CSV** (`template.csv`) — ver "Formato CSV".
-  7. **Deploy** — Postgres + API em nuvem (ex.: Render), variáveis de ambiente.
+  7. ~~**Deploy**~~ — fora do escopo (decisão de 12/11/2026): demonstração local com Docker.
 
 ## Stack
 
@@ -49,16 +53,15 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 ## Comandos
 
 ```bash
-docker compose up -d db mailpit    # Postgres (executa docker/init.sql na 1ª vez) + Mailpit (e-mails em http://localhost:8025)
-./mvnw spring-boot:run             # API em http://localhost:8080 · Swagger em /swagger-ui.html
+docker compose up -d --build       # tudo no Docker: Postgres + Mailpit + API (http://localhost:8080, Flyway aplica o schema)
+docker compose up -d db mailpit    # só a infra: Postgres + Mailpit (e-mails em http://localhost:8025)
+./mvnw spring-boot:run             # API em http://localhost:8080 · Swagger em /swagger-ui.html (Flyway aplica as migrações)
 ./mvnw test                        # testes unitários e web (integração é pulada sem POUPAMAIS_TEST_DB_URL)
 ./mvnw verify                      # tudo o que o CI roda: testes + ModularidadeTest + piso do JaCoCo
 ./mvnw spotless:apply              # formata o código: rode antes de commitar
 ./mvnw clean package -DskipTests   # gera o jar
-docker compose down -v             # derruba e APAGA o volume (reaplica init.sql na próxima subida)
+docker compose down -v             # derruba e APAGA o volume (o Flyway recria o schema na próxima subida)
 ```
-
-> `init.sql` só roda quando o volume está vazio. Mudou o DDL? `docker compose down -v` e suba de novo.
 
 ## Arquitetura: monólito modular + MVC em camadas
 
@@ -95,34 +98,48 @@ br.com.poupamais
 │   ├── exception/     RegraNegocioException, RecursoNaoEncontradoException, ConflitoException,
 │   │                  ErroAutenticacaoException, ErroResponse, GlobalExceptionHandler
 │   └── domain/        Periodo (value object mês/ano), NomeMes
-├── lancamento/
-│   ├── LancamentoFacade.java              # ← API PÚBLICA do módulo (interface); a única coisa que outros módulos usam
-│   ├── LancamentoResumo.java              # ← records públicos devolvidos pela facade
-│   ├── TipoLancamento.java                # ← enums públicos (outros módulos precisam)
-│   ├── StatusLancamento.java          #   ATIVO, INATIVO, DELETADO
-│   ├── api/                               # interno: Controller + DTO + Mapper
+├── lancamento/                            # exemplo completo; os outros módulos seguem o mesmo desenho
+│   ├── package-info.java                  # @ApplicationModule (a raiz do módulo fica só com isto)
+│   ├── publico/                           # @NamedInterface("publico"): ÚNICA parte visível aos outros módulos
+│   │   ├── LancamentoFacade.java          #   interface (implementada no service/impl)
+│   │   ├── dto/       LancamentoResumo, NovoLancamento, FiltroLancamento   (records)
+│   │   └── enums/     TipoLancamento, StatusLancamento (ATIVO, INATIVO, DELETADO; podeIrPara)
+│   ├── endpoints/                         # interno: adaptador de entrada HTTP
 │   │   ├── LancamentoResource.java
-│   │   ├── LancamentoMapper.java
-│   │   └── dto/  LancamentoRequest, LancamentoResponse, StatusRequest, LancamentoFiltroParams
+│   │   ├── dto/       LancamentoRequest, LancamentoResponse, StatusRequest, LancamentoFiltroParams, CategoriaDoLancamentoResponse
+│   │   └── mappers/   LancamentoMapper
 │   ├── service/                           # interno: regras de negócio
-│   │   ├── LancamentoService.java
-│   │   ├── LancamentoValidator.java
-│   │   └── impl/ LancamentoServiceImpl.java   (também implementa LancamentoFacade)
+│   │   ├── LancamentoService.java, LancamentoValidator.java, LancamentoResumoConversor.java
+│   │   └── impl/      LancamentoServiceImpl   (também implementa LancamentoFacade)
 │   └── model/                             # interno: persistência
-│       ├── Lancamento.java, CategoriaLancamento.java, CategoriaLancamentoId.java
-│       ├── LancamentoRepository.java
-│       └── LancamentoSpecifications.java
-├── usuario/   (api/: AuthResource, PerfilResource, PrivacidadeResource · service/: AuthService, PerfilService,
-│               RecuperacaoSenhaService, PrivacidadeService · model/: Usuario, FotoPerfil, TokenRecuperacaoSenha)
-├── notificacao/ (EmailFacade, EnvioEmailException · service/impl/SmtpEmailService ·
-│                 templates em src/main/resources/templates/email/)
-├── categoria/ (CategoriaFacade, CategoriaResumo · api/ service/ model/)
-├── dashboard/ (api/ service/ · sem model: só lê pelos facades)
-└── arquivo/   (api/ · importacao/ · exportacao/)
+│       ├── entidades/      Lancamento, CategoriaLancamento, CategoriaLancamentoId
+│       ├── repositories/   LancamentoRepository
+│       └── specifications/ LancamentoSpecifications
+├── categoria/   publico/ (CategoriaFacade · dto/CategoriaResumo) · endpoints/ (+ dto/, mappers/) · service/ (+ impl/) ·
+│                model/ (entidades/Categoria · repositories/CategoriaRepository)
+├── usuario/     endpoints/ (AuthResource, PerfilResource, PrivacidadeResource + dto/, mappers/UsuarioMapper) ·
+│                service/ (+ impl/, inclui SessaoUsuarioConsulta, ExportacaoDadosServiceImpl) · model/ (entidades/ ·
+│                repositories/) · sem publico/
+├── notificacao/ publico/ (EmailFacade · excecoes/EnvioEmailException) · service/impl/SmtpEmailService ·
+│                templates em src/main/resources/templates/email/
+├── dashboard/   endpoints/ (+ dto/) · service/ (ClassificacaoTaxa, RateioCategorias, MensagemSaldoFactory + impl/) ·
+│                sem model/ e sem publico/ (só lê pelas facades)
+└── arquivo/     endpoints/ (+ dto/) · service/importacao/ · service/exportacao/ · sem model/ e sem publico/
 ```
 
-**Regra de ouro:** o que está na **raiz do módulo** é público; `api/`, `service/` e `model/` são internos.
-Outro módulo **só** injeta a `XxxFacade` e usa os records/enums da raiz. **Nunca** o repository ou a entidade de outro módulo.
+**Regra de ouro:** só a pasta **`publico/`** (e as subpastas dela) é visível aos outros módulos; `endpoints/`, `service/` e `model/`
+são internos. Outro módulo **só** injeta a `XxxFacade` de `publico/` e usa os records/enums/exceções de `publico/dto`, `publico/enums`
+e `publico/excecoes`. **Nunca** o repository ou a entidade de outro módulo. Dentro do mesmo módulo vale tudo
+(ex.: a entidade `Lancamento` usa `publico/enums/StatusLancamento`).
+
+**Como a fronteira é verificada (Spring Modulith 2.1.2):**
+- Cada pasta pública tem `package-info.java` com `@NamedInterface("publico")`. **A anotação NÃO vale para subpacotes** (testado em
+  12/11/2026): uma subpasta nova dentro de `publico/` precisa do **próprio** `package-info.java` com o mesmo nome, senão o
+  `ModularidadeTest` acusa "depends on non-exposed type".
+- Módulo sem nada a expor (`usuario`, `dashboard`, `arquivo`) não tem `publico/`.
+- `shared` continua `@ApplicationModule(type = OPEN)`: todos usam tudo dele.
+- Nomes de pastas: `publico` (não `public`, palavra reservada), `endpoints`, `dto`, `mappers`, `service`, `impl`, `model`, `entidades`,
+  `repositories`, `specifications`, `enums`, `excecoes`. Testes ficam no **mesmo pacote** da classe testada.
 
 ### Relacionamento entre módulos no banco
 
@@ -143,13 +160,13 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 | `SecurityConfiguration` | propriedade `poupamais.swagger-habilitado` (`SWAGGER_HABILITADO`, padrão `true`) | `false` desliga o springdoc (`springdoc.api-docs.enabled`/`swagger-ui.enabled`) e tira as rotas do Swagger da lista pública (passam a exigir token). |
 | `SecurityConfiguration` | bean `PasswordEncoder` (BCrypt) | Injete nos services; nunca instancie outro. |
 | `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401 | Mensagens em português prontas para o usuário. |
-| `notificacao.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
-| `lancamento.LancamentoFacade` (branch `feat/lancamento`) | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records `LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`; enums `TipoLancamento`, `StatusLancamento` | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
-| `categoria.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. |
+| `notificacao.publico.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.publico.excecoes.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
+| `lancamento.publico.LancamentoFacade` | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records em `publico.dto` (`LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`); enums em `publico.enums` (`TipoLancamento`, `StatusLancamento`) | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
+| `categoria.publico.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `listarTodas(idUsuario)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarPorDescricao(idUsuario, descricao)` (Optional, não cria), `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `publico.dto.CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. `listarTodas`: somente leitura, ativas e inativas (ativas primeiro, depois alfabética), usada pela exportação de dados (RF016). |
 
-### API pública do módulo `lancamento` (✅ implementada na `feat/lancamento`; `dashboard`, `arquivo` e `usuario` usam exatamente isto)
+### API pública do módulo `lancamento` (✅ implementada; `dashboard`, `arquivo` e `usuario` usam exatamente isto)
 
-Na raiz de `br.com.poupamais.lancamento`:
+Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.publico.enums` (enums):
 
 - `enum TipoLancamento { RECEITA, DESPESA }` e `enum StatusLancamento { ATIVO, INATIVO, DELETADO }` (com `podeIrPara(novo)`).
 - `record LancamentoResumo(Long id, String descricao, TipoLancamento tipo, int mes, int ano, BigDecimal valor, StatusLancamento status,
@@ -186,19 +203,36 @@ Na raiz de `br.com.poupamais.lancamento`:
 - Repository com `@EntityGraph("categorias")` no `findAll(spec, sort)` e no `findByIdAndIdUsuario` (sem N+1). Filtro por categoria usa
   subconsulta `exists` (não duplica linhas). `descricao` escapa `%` e `_`.
 
+### Decisões do módulo `dashboard` (tomadas na implementação)
+
+- Estrutura: `endpoints/DashboardResource` + `endpoints/dto/DashboardParams`, `DashboardResponse` · `service/DashboardService` →
+  `impl/DashboardServiceImpl`, `ClassificacaoTaxa` (RN010, interna: nenhum outro módulo usa), `RateioCategorias` (RN009),
+  `MensagemSaldoFactory` (RN010). Sem `model/` e sem `publico/`.
+  Por ser só leitura e agregação, o service devolve direto o `DashboardResponse` (sem mapper).
+- **Uma** chamada a `LancamentoFacade.listarAtivos(idUsuario, periodo.ultimos(4))` por requisição; o resto é calculado em memória.
+- `mes`/`ano` opcionais (o que faltar vem de `Periodo.atual()`, fuso de Brasília); fora de 1–12 / 2000–2100 ou não numérico → `400`
+  "Dados inválidos" com `erros[{campo, mensagem}]` ("O mês deve estar entre 1 e 12", "O ano deve estar entre 2000 e 2100").
+- `taxaGasto` = despesas × 100 / receitas com 2 casas (`HALF_UP`); a classificação usa a taxa **já arredondada** (70,004 → 70,00 → dentro).
+- Mensagens: saldo > 0 "Saldo positivo de R$ X em <Mês>"; saldo < 0 "As despesas superaram as receitas em R$ X em <Mês>" (X sem sinal);
+  **saldo zero com lançamentos** "Receitas e despesas se igualaram em <Mês>: saldo de R$ 0,00"; **mês sem lançamento ativo**
+  "Nenhum lançamento ativo em <Mês>". Moeda pt-BR `R$ 1.234,56` com espaço comum (não NBSP). Nunca recomenda investimento.
+- `despesasPorCategoria`: parte = valor / N truncada em centavos; a sobra vai para a categoria de **menor id**. Ordem: valor desc, empate
+  por `categoriaId` asc. Despesa sem categoria (não deveria existir) entra como `categoriaId: null`, "Sem categoria", para a soma fechar.
+- `maioresDespesas`: top 5 por valor desc; **empate: menor id primeiro** (o cadastrado antes). `categorias` = nomes em ordem de id.
+
 ## Design patterns (onde e por quê)
 
 | Pattern | Onde | Por quê |
 | --- | --- | --- |
-| **MVC em camadas** | `api` → `service` → `model` em todo módulo | Controller fino (HTTP + validação de formato), regra no service, persistência no repository. |
-| **Facade** | `CategoriaFacade`, `LancamentoFacade` na raiz do módulo | É a fronteira do módulo: esconde o interior, que pode mudar sem quebrar os outros. |
-| **DTO + Mapper** | `api/dto` (records) + `XxxMapper` (`@Component`, mapeamento manual) | Nunca expor entidade JPA; o contrato da API fica estável. |
-| **Repository** | Spring Data `JpaRepository` em `model/` | Acesso a dados padronizado, sempre filtrando pelo dono (RN005). |
+| **MVC em camadas** | `endpoints` → `service` → `model` em todo módulo | Controller fino (HTTP + validação de formato), regra no service, persistência no repository. |
+| **Facade** | `CategoriaFacade`, `LancamentoFacade`, `EmailFacade` em `publico/` | É a fronteira do módulo: esconde o interior, que pode mudar sem quebrar os outros. |
+| **DTO + Mapper** | `endpoints/dto` (records) + `endpoints/mappers/XxxMapper` (`@Component`, mapeamento manual) | Nunca expor entidade JPA; o contrato da API fica estável. |
+| **Repository** | Spring Data `JpaRepository` em `model/repositories/` | Acesso a dados padronizado, sempre filtrando pelo dono (RN005). |
 | **Specification** | `LancamentoSpecifications` (descrição, mês, ano, tipo, status, categoria) | Filtros combináveis do RF005 **reaproveitados pela exportação** ("exporta o que está filtrado"). |
 | **Strategy + Factory** | `arquivo.exportacao`: `ExportadorLancamentos` (interface) → `ExportadorCsv`, `ExportadorXlsx`; `ExportadorFactory` recebe `List<ExportadorLancamentos>` e escolhe pelo `formato` | Adicionar PDF amanhã = 1 classe nova, sem `if/else` espalhado. |
 | **Validator** | `LancamentoValidator` | RN001 em **um só lugar**, usado pelo cadastro manual **e** pela importação CSV. |
 | **Value Object** | `shared.domain.Periodo(mes, ano)` com `anterior()`, `ultimos(4)` e `nomeMes()` | RN008 (4 meses atravessando a virada do ano) sem conta de data espalhada. |
-| **Enum com comportamento** | `dashboard.ClassificacaoTaxa.de(BigDecimal taxa)` | RN010 (70% / 100%) num só lugar, testável. |
+| **Enum com comportamento** | `dashboard.service.ClassificacaoTaxa.de(BigDecimal taxa)` | RN010 (70% / 100%) num só lugar, testável. |
 | **Máquina de estados simples** | `StatusLancamento.podeIrPara(novo)` + `Lancamento.alterarStatus(novo)` | RN006: transições ATIVO/INATIVO/DELETADO validadas num lugar só. |
 | **Chain of Responsibility** | `JwtAuthenticationFilter` na filter chain do Spring Security | Autenticação fora dos controllers. |
 | **Exception Handler centralizado** | `shared.exception.GlobalExceptionHandler` (`@RestControllerAdvice`) | Formato de erro único (RNF007); nenhum `try/catch` em controller. |
@@ -210,15 +244,18 @@ Na raiz de `br.com.poupamais.lancamento`:
 
 - Regra de negócio em controller, ou controller chamando repository.
 - Entidade JPA em request/response.
-- Um módulo importando `api/`, `service/` ou `model/` de outro. O teste do Modulith falha.
+- Um módulo importando `endpoints/`, `service/` ou `model/` de outro (só `publico/` é permitido). O teste do Modulith falha.
 - `double`/`float` para dinheiro (usar `BigDecimal`), `@Autowired` em campo, `try/catch` que engole exceção.
 - Service "deus": se passar de ~200 linhas ou misturar assuntos, extraia (ex.: `RateioCategorias`, `MensagemSaldoFactory`).
 - `id_usuario` vindo do body/query: vem **sempre** do `UsuarioLogado` (token).
 
 ## Banco de dados
 
-DDL oficial: `../Banco de Dados/poupamais_modelo_fisico.sql` → copiar para `docker/init.sql`. É a fonte da verdade; o Hibernate não cria tabelas.
+DDL em `src/main/resources/db/migration` (Flyway): é a fonte da verdade; o Hibernate não cria tabelas.
+O `V1__schema_inicial.sql` veio do DDL oficial (`../Banco de Dados/poupamais_modelo_fisico.sql`).
 
+- Mudança de banco = **nova migração** `V<n>__descricao.sql`. **Nunca editar migração já aplicada**; só adicionar.
+- `spring.flyway`: schema `poupamais` criado e gerenciado pelo Flyway, histórico em `poupamais.flyway_schema_history`.
 - `spring.jpa.hibernate.ddl-auto=validate` e `spring.jpa.properties.hibernate.default_schema=poupamais`.
 - Tabelas: `usuario`, `categoria`, `lancamento`, `categorias_lancamentos`.
 - Tipos: `valor numeric(16,2)` → **`BigDecimal`**; `data_cadastro`/`data_atualizacao` são `date` → `LocalDate`;
@@ -320,10 +357,49 @@ Detalhes do `usuario` (decididos):
 - `GET /api/usuarios/me/foto` → bytes da imagem (`Content-Type` correto, `Cache-Control: no-cache`) · sem foto → `404`
 - `PUT /api/usuarios/me/foto` (multipart, campo `foto`) → `204` · tipo/tamanho inválido → `422`
 - `DELETE /api/usuarios/me/foto` → `204`
-- `GET /api/usuarios/me/dados` → arquivo `meus-dados-poupamais.json` (RF016)
+- `GET /api/usuarios/me/dados` → arquivo `meus-dados-poupamais.json` (RF016, RN016; estrutura abaixo)
 - `POST /api/usuarios/me/excluir` `{senha}` → `204` (RF017) · senha errada → `422`. É POST porque DELETE com body não é confiável em proxies.
 
 Rotas públicas: `cadastro`, `login`, `recuperar-senha`, `redefinir-senha`.
+
+Exportação de dados do titular (`GET /api/usuarios/me/dados`, decidido em `feat/exportacao-dados`):
+- `200` com `Content-Type: application/json` e `Content-Disposition: attachment; filename="meus-dados-poupamais.json"`; sem token → `401`.
+- camelCase; datas `LocalDate` como `"AAAA-MM-DD"` e instantes ISO-8601 em UTC (`"2026-11-12T18:00:00Z"`); `geradoEm` truncado em segundos.
+- `perfil` traz **só** `id, nome, email, dataCadastro, aceiteTermosEm, possuiFoto`: nunca senha/hash, `senhaAlteradaEm` nem tokens.
+  **A foto não vai no JSON** (só `possuiFoto`): imagem em Base64 incharia o arquivo e ela já pode ser baixada em `GET /api/usuarios/me/foto`.
+- `categorias`: **todas** do usuário (ativas e inativas), ativas primeiro e depois alfabética (`CategoriaFacade.listarTodas`).
+- `lancamentos`: **todos** os status (ATIVO, INATIVO e DELETADO), ordem ano/mês/id desc (`LancamentoFacade.listarTodos`), mesmo
+  formato da response de lançamento (`categorias: [{id, descricao}]`). Usuário sem lançamentos → `[]` (não é erro, ao contrário do RN013).
+- Só leitura e agregação: o `ExportacaoDadosServiceImpl` devolve direto o `DadosTitularResponse` (sem mapper), como o dashboard.
+
+```json
+{
+  "geradoEm": "2026-11-12T18:00:00Z",
+  "perfil": {
+    "id": 7,
+    "nome": "Ana",
+    "email": "ana@email.com",
+    "dataCadastro": "2026-11-01",
+    "aceiteTermosEm": "2026-11-01T10:00:00Z",
+    "possuiFoto": false
+  },
+  "categorias": [{ "id": 3, "descricao": "Lazer", "ativa": true }],
+  "lancamentos": [
+    {
+      "id": 9,
+      "descricao": "Cinema",
+      "tipo": "DESPESA",
+      "mes": 8,
+      "ano": 2026,
+      "valor": 45.9,
+      "status": "DELETADO",
+      "categorias": [{ "id": 3, "descricao": "Lazer" }],
+      "dataCadastro": "2026-08-02",
+      "dataAtualizacao": "2026-08-03"
+    }
+  ]
+}
+```
 
 **Categorias** (módulo `categoria`, RF011 / UC009). Não há tela própria no front: criar e editar são feitos por modais abertos
 no dropdown de categorias do formulário de lançamento. Por isso o `POST` devolve a categoria criada, que o front já seleciona.
@@ -336,6 +412,7 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
 - Ordenação do `GET`: alfabética sem diferenciar maiúsculas; sem filtro, **ativas primeiro**. `PUT`/`PATCH` → `200 {id, descricao, ativa}`.
   Descrição: trim, obrigatória, ≤ 255 (`400` no DTO; `422` se chegar ao service); duplicada no `PUT` → `409`; de outro usuário → `404`.
 - `CategoriaFacade` (implementada por `CategoriaServiceImpl`): `buscarPorIds(idUsuario, ids)` (ignora ids alheios/inexistentes, 1 consulta),
+  `listarTodas(idUsuario)` (ativas e inativas, mesma ordem do `GET` sem filtro),
   `validarAtivasDoUsuario(idUsuario, ids)` → **`404` "Categoria não encontrada"** se alguma não existir ou for de outro usuário (RN005)
   e **`422`** se alguma estiver inativa, `buscarOuCriar(idUsuario, descricao)` (não reativa inativa), `criarPadroes(idUsuario)`.
 - O bloqueio do `DELETE` consulta `poupamais.categorias_lancamentos` por **query nativa** no `CategoriaRepository`
@@ -435,8 +512,32 @@ Rota inexistente (com token válido) → 404 `"Recurso não encontrado"`; métod
   ```
 - Limites: **2 MB** (`spring.servlet.multipart.max-file-size=2MB`) e **5.000 linhas de dados**. Excedeu ou sem cabeçalho → 422 com o arquivo inteiro recusado.
 - Cada linha passa pelo mesmo `LancamentoValidator` (RN001). O método de importação **não** é `@Transactional`:
-  cada linha válida é salva na sua própria transação (`LancamentoFacade.criar`), então uma falha não desfaz as outras (RN007).
+  cada linha válida é salva na sua própria transação (categorias novas + `LancamentoFacade.criar`), então uma falha não desfaz as outras (RN007).
 - A exportação usa o **mesmo layout** (+ coluna `status`), para que um arquivo exportado possa ser reimportado.
+
+Decisões da implementação (`feat/arquivo`):
+- **Cabeçalho**: localizado pelo nome (trim, sem diferenciar maiúsc.), em qualquer ordem; as 6 colunas são obrigatórias e colunas
+  extras (ex.: `status` do arquivo exportado) são ignoradas. Linhas em branco antes do cabeçalho são puladas.
+- **Recusa do arquivo inteiro (422, nada é gravado)**: vazio/sem campo `arquivo`, > 2 MB, não é texto UTF-8 válido (ou tem byte nulo),
+  cabeçalho ausente/incompleto, nenhuma linha de dados, > 5.000 linhas de dados não vazias.
+- **Linha em branco**: ignorada; **não** conta em `totalLinhas` nem como falha. `totalLinhas` = linhas de dados não vazias.
+  `linha` = número real no arquivo (cabeçalho = 1, linhas em branco contam na numeração).
+- Linha com colunas faltando/sobrando ou aspas quebradas → falha da linha (campos com `;` vão entre aspas duplas; uma linha = um registro).
+- **Valor**: aceita `1234,56`, `1234.56`, `1.234,56`, `1,234.56`, `R$ 10,5`. Com vírgula **e** ponto, o último é o decimal e o outro é milhar;
+  com só um deles, ele é o decimal, salvo se repetido (`1.234.567` = milhar). Máximo 2 casas (`1,234` e `10,555` são falha). Negativo/zero → falha.
+- `tipo`/`mes`/`ano`/`descricao`/categorias são checados **antes** de criar qualquer categoria (checagem prévia da RN001 no `ConversorLinha`);
+  a validação definitiva continua no `LancamentoValidator` via `LancamentoFacade.criar`. Categorias repetidas na linha (ignorando maiúsc.) contam uma vez.
+- **Categoria inativa** citada → falha da linha "A categoria "X" está inativa e não pode ser usada", sem criar as outras categorias novas da linha.
+  Categoria nova (RN002) só é criada (`buscarOuCriar`) depois que a linha passou em tudo isso; `categoriasCriadas` lista as descrições criadas.
+- **Transação por linha** (pendência 12): o `ImportacaoService` abre uma transação só da linha (`TransactionOperations`) com a criação
+  das categorias novas e o `LancamentoFacade.criar`; as facades usam a propagação padrão (`REQUIRED`) e entram nela. Se `criar` recusar
+  a linha (ou o commit falhar), a categoria criada para ela é desfeita junto: nenhuma categoria órfã, e `categoriasCriadas` (e o cache
+  da importação) só recebem categorias de linhas **gravadas**.
+- Erro inesperado numa linha → falha com "Não foi possível salvar esta linha. Tente novamente." (só o tipo da exceção vai para o log).
+- **Exportação**: CSV em UTF-8 **com BOM**, `;`, CRLF, valor `8500,00`; XLSX (aba "Lançamentos", cabeçalho em negrito, mês/ano/valor numéricos,
+  valor com formato `0.00`). Nome `lancamentos-AAAA-MM-DD.<formato>` (data de São Paulo). `formato` ausente ou diferente de `csv`/`xlsx` → 400
+  "Formato inválido. Use: csv ou xlsx". Content types: `text/csv;charset=UTF-8` e
+  `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Template baixa como `template.csv` (`text/csv;charset=UTF-8`).
 
 ## Convenções
 
@@ -464,7 +565,7 @@ Três níveis obrigatórios, mais a verificação de arquitetura. Guia detalhado
 | **Arquitetura** | `ModularidadeTest` | Nenhum módulo acessa o interior de outro (Spring Modulith) | Nenhum |
 
 - Integração roda só com `POUPAMAIS_TEST_DB_URL` definida (`@EnabledIfEnvironmentVariable`); no CI ela está **sempre** definida.
-  Localmente: `docker compose up -d db-test` (porta 5433, schema do `docker/init.sql`) e
+  Localmente: `docker compose up -d db-test` (porta 5433, nasce vazio; o Flyway cria o schema ao subir o contexto) e
   `export POUPAMAIS_TEST_DB_URL=jdbc:postgresql://localhost:5433/poupamais_test`.
 - **Cobertura (JaCoCo)**: `./mvnw verify` falha abaixo do piso do `pom.xml`: **80% de linhas e 70% de branches** no início
   (o Previna usa 95/90; subimos o piso junto quando a cobertura subir). Excluídos: `PoupaMaisApplication` e os `dto/` (records sem lógica).
@@ -479,14 +580,20 @@ Arquivo: `.github/workflows/ci.yml` (mesmo desenho da pipeline do Previna, adapt
 
 | Job | Passos | Reprova se |
 |---|---|---|
-| `testes` (Testes e cobertura) | 1. checkout · 2. Java 21 Temurin com cache Maven · 3. aplica `docker/init.sql` no Postgres de serviço · 4. `spotless:check` · 5. `./mvnw -B -ntp verify` · 6. publica o relatório JaCoCo (sempre) e o do Surefire (se falhar) | formatação, qualquer teste, `ModularidadeTest` ou cobertura abaixo do piso |
+| `testes` (Testes e cobertura) | 1. checkout · 2. Java 21 Temurin com cache Maven · 3. `spotless:check` · 4. `./mvnw -B -ntp verify` (o Flyway cria o schema no Postgres de serviço, vazio) · 5. publica o relatório JaCoCo (sempre) e o do Surefire (se falhar) | formatação, qualquer teste, `ModularidadeTest` ou cobertura abaixo do piso |
 | `compose` (Docker Compose) | valida `docker compose config -q` | compose inválido |
 
 - Serviço do job `testes`: `postgres:17-alpine` com `POUPAMAIS_TEST_DB_URL` apontando para ele, então **os testes de integração sempre rodam no CI**.
 - Rodar o mesmo localmente: skill `pipeline-local`.
 - **Regra da equipe:** PR só é integrado com o CI verde. Configurar no GitHub: Settings → Branches → proteção da `development` e da `main`
   exigindo o check "Testes e cobertura" e 1 aprovação.
-- Futuro (card de Deploy/Dockerfiles): job que constrói a imagem Docker e o deploy automático após o merge.
+- Sem deploy (decisão de 12/11/2026): não há job de imagem nem publicação; a entrega roda localmente com `docker compose`.
+
+## Definição de pronto
+
+Nenhuma tarefa é dada como finalizada sem rodar o passo a passo **completo** da pipeline local (skill `pipeline-local`:
+`spotless:check`, `db-test` no ar, `verify` com os testes de integração rodando, `docker compose config -q`) com tudo verde.
+Se algum passo não rodou (Docker parado, rede, teste pulado), a tarefa **não está pronta**: diga exatamente o que faltou.
 
 ## Claude Code: skills e plugins
 
@@ -512,11 +619,15 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 3 | `categoria` | ✅ na `development` | — |
 | 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na `development` | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
 | 5 | `lancamento` | ✅ na `development` | `LancamentoFacade` exatamente como definida acima |
-| 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | depois de 4 e 5 | usa `LancamentoFacade.listarTodos` |
-| 7 | `dashboard` | depois de 5 | |
-| 8 | `arquivo` (importação, exportação, template) | depois de 5 | |
-| 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | em andamento (`fix/rota-inexistente-404`) | deve responder `404` no padrão de erro |
-| 9 | Deploy (Dockerfile da API, Postgres em nuvem, variáveis) | por último | decidir Flyway × `init.sql` aplicado à mão |
+| 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | ✅ na `development` | usa `LancamentoFacade.listarTodos` e `CategoriaFacade.listarTodas` (nova, só leitura); estrutura do JSON no contrato. Pendente: replicar o contrato no `CLAUDE.md` do front |
+| 7 | `dashboard` | ✅ na `development` | — |
+| 8 | `arquivo` (importação, exportação, template) | ✅ na `development` | `CategoriaFacade.buscarPorDescricao` adicionada (categoria inativa e RN002 sem criar antes da hora); decisões em "Formato CSV" |
+| 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | ✅ na `development` | — |
+| 9 | Deploy | ❌ fora do escopo (12/11/2026) | apresentação e entrega rodando localmente com `docker compose up -d --build` |
+| 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `development` | — |
+| 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | ✅ na `development` | categorias novas + lançamento na mesma transação por linha (`TransactionOperations` no `arquivo`); ver "Formato CSV" |
+| 13 | Reorganização de pastas: `publico/` (`@NamedInterface`), `endpoints/` (+ `dto/`, `mappers/`), `model/` (`entidades/`, `repositories/`, `specifications/`) | ✅ na `development` | só organização; nenhuma regra ou contrato mudou |
+| 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ na branch `chore/fechamento-backend`, aguardando PR | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
 **Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência

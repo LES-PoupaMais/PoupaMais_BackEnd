@@ -1,8 +1,8 @@
 package br.com.poupamais.usuario.service;
 
 import br.com.poupamais.shared.security.JwtService.TokenGerado;
-import br.com.poupamais.usuario.model.FotoPerfil;
-import br.com.poupamais.usuario.model.Usuario;
+import br.com.poupamais.usuario.model.entidades.FotoPerfil;
+import br.com.poupamais.usuario.model.entidades.Usuario;
 
 /** Perfil, foto e troca de senha do usuário logado (RF013, RF014, RN015). */
 public interface PerfilService {

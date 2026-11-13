@@ -24,18 +24,20 @@ Leia antes: `CLAUDE.md` deste repo (arquitetura, patterns, contrato, regras RN00
 | E-mail | `notificacao` |
 | Algo usado por todos (segurança, erro, `Periodo`) | `shared` |
 
-Precisa de dado de outro módulo? Use a **Facade** pública dele (raiz do módulo). Se o método não existe, acrescente-o na Facade:
-**nunca** importe `api/`, `service/` ou `model/` de outro módulo (o `ModularidadeTest` quebra).
+Precisa de dado de outro módulo? Use a **Facade** pública dele (`<modulo>/publico/`). Se o método não existe, acrescente-o na Facade;
+records que ela devolve vão em `publico/dto/`, enums em `publico/enums/`, exceções em `publico/excecoes/`.
+**Nunca** importe `endpoints/`, `service/` ou `model/` de outro módulo (o `ModularidadeTest` quebra).
+Pasta nova dentro de `publico/`? Crie o `package-info.java` dela com `@NamedInterface("publico")`: a anotação **não** vale para subpacotes.
 
 ## 3. Implementar de baixo para cima
 
-1. **model/**: entidade (se a tabela mudou, o DDL muda primeiro: `docker/init.sql`, a partir do DDL oficial), repository,
-   Specification se tiver filtro. Toda consulta filtra por `idUsuario`.
+1. **model/**: entidade em `model/entidades/` (se a tabela mudou, o DDL muda primeiro: nova migração `db/migration/V<n>__descricao.sql`; nunca editar uma já aplicada), repository em `model/repositories/`,
+   Specification em `model/specifications/` se tiver filtro. Toda consulta filtra por `idUsuario`.
 2. **service/**: interface + `impl/`. Regra de negócio aqui; lança exceções de `shared.exception` com mensagem em português pronta
    para o usuário. `@Transactional` em escrita, `readOnly = true` em leitura. Dinheiro em `BigDecimal`.
-3. **api/dto/**: `record` de request (Bean Validation com mensagens em português) e de response. Nunca expor entidade.
-4. **api/XxxMapper**: `@Component`, conversão manual.
-5. **api/XxxResource**: fino; pega o usuário com `UsuarioLogado.id()`, chama o service, devolve o status do contrato.
+3. **endpoints/dto/**: `record` de request (Bean Validation com mensagens em português) e de response. Nunca expor entidade.
+4. **endpoints/mappers/XxxMapper**: `@Component`, conversão manual.
+5. **endpoints/XxxResource**: fino; pega o usuário com `UsuarioLogado.id()`, chama o service, devolve o status do contrato.
 
 ## 4. Testar (obrigatório; o CI reprova abaixo do piso de cobertura)
 
@@ -47,4 +49,5 @@ Precisa de dado de outro módulo? Use a **Facade** pública dele (raiz do módul
 ## 5. Fechar
 
 - Endpoint novo ou alterado → atualize o **contrato** no `CLAUDE.md` deste repo **e** no `../PoupaMais_FrontEnd/CLAUDE.md`.
-- Rode a skill `pipeline-local` (os mesmos passos do CI) antes de dizer que terminou.
+- **Definição de pronto:** rode o passo a passo completo da skill `pipeline-local` (os mesmos passos do CI) com tudo verde.
+  Se algum passo não rodou ou algum teste de integração foi pulado, a tarefa não está pronta.

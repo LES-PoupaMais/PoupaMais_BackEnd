@@ -11,8 +11,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
-// Contra PostgreSQL real: sobe a aplicação inteira (ddl-auto=validate) e confere o schema do
-// docker/init.sql. Sem POUPAMAIS_TEST_DB_URL o teste é pulado. Ver README.
+// Contra PostgreSQL real: sobe a aplicação inteira (Flyway aplica db/migration, ddl-auto=validate)
+// e confere o schema. Sem POUPAMAIS_TEST_DB_URL o teste é pulado. Ver README.
 @SpringBootTest
 @EnabledIfEnvironmentVariable(named = "POUPAMAIS_TEST_DB_URL", matches = ".+")
 class SchemaIntegracaoTest {
@@ -25,7 +25,7 @@ class SchemaIntegracaoTest {
   @Autowired private JdbcTemplate jdbc;
 
   @Test
-  void schemaPoupamaisTemAsSeisTabelas() {
+  void schemaPoupamaisTemAsSeisTabelasEOHistoricoDoFlyway() {
     List<String> tabelas =
         jdbc.queryForList(
             "select table_name from information_schema.tables where table_schema = 'poupamais'",
@@ -38,6 +38,22 @@ class SchemaIntegracaoTest {
             "lancamento",
             "categorias_lancamentos",
             "foto_perfil",
-            "token_recuperacao_senha");
+            "token_recuperacao_senha",
+            "flyway_schema_history");
+  }
+
+  @Test
+  void flywayAplicouAsMigracoesSemFalha() {
+    Integer falhas =
+        jdbc.queryForObject(
+            "select count(*) from poupamais.flyway_schema_history where not success",
+            Integer.class);
+    Integer v1 =
+        jdbc.queryForObject(
+            "select count(*) from poupamais.flyway_schema_history where version = '1'",
+            Integer.class);
+
+    assertThat(falhas).isZero();
+    assertThat(v1).isEqualTo(1);
   }
 }
