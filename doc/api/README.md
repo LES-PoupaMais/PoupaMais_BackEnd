@@ -40,7 +40,10 @@ Suba a API: `docker compose up -d --build` (API em http://localhost:8080, e-mail
   categoria em uso (`422`).
 - Variáveis padrão: `baseUrl` `http://localhost:8080`, usuário `teste.colecao@poupamais.local` / `senha123`, `mes` `11`, `ano` `2026`.
 
-## Mudou um endpoint?
+## Endpoint novo ou alterado (regra da equipe)
+
+**Todo endpoint entra por padrão nas duas coleções, no mesmo PR.** O teste `ColecaoApiTest` compara os controllers
+com as coleções e reprova o `./mvnw verify` (e o CI) se faltar algum ou sobrar um que não existe mais.
 
 Ajuste a lista `REQUISICOES` em `gerar_colecoes.py` e rode:
 

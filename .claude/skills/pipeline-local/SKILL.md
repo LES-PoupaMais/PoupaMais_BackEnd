@@ -22,6 +22,8 @@ docker compose config -q                      # 4. compose válido (job "Docker 
 ```
 
 - Falhou o `spotless:check`: rode `./mvnw spotless:apply` e confira o diff.
+- Falhou o `ColecaoApiTest`: endpoint novo/alterado fora das coleções. Ajuste `doc/api/gerar_colecoes.py` e rode
+  `python3 doc/api/gerar_colecoes.py` (skill `feature-backend`, passo 5).
 - Falhou o `ModularidadeTest`: algum módulo importou o interior de outro. Use a Facade (skill `feature-backend`).
 - Falhou o JaCoCo (`Coverage checks have not been met`): veja `target/site/jacoco/index.html` e escreva os testes que faltam.
 - Testes de integração pulados localmente: confira se `POUPAMAIS_TEST_DB_URL` está exportada (pulado = não pronto).
