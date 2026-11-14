@@ -12,43 +12,14 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 ## Estado atual (12/11/2026)
 
 - **Fonte da verdade:** este `CLAUDE.md`. Os `.md` do DVP em `../Documentação/md/` são uma versão anterior; se divergirem, vale este arquivo.
-- **Pronto na `development`:**
-  - Fundação: Spring Boot 4.1.2, Spring Modulith 2.1.2, `docker-compose.yml` (db, db-test, mailpit, api), Flyway (`db/migration`, 6 tabelas), `Dockerfile`, JaCoCo, Spotless.
-  - `shared`: exceções + `GlobalExceptionHandler`, `Periodo`, `WebConfiguration` e **segurança JWT completa** (`shared.security`).
-  - `notificacao`: `EmailFacade` (e-mail de recuperação de senha via SMTP).
-  - `categoria`: CRUD completo + `CategoriaFacade`.
-- **`usuario`:** auth, perfil, foto, troca/recuperação de senha, exclusão de conta; `SenhaAlteradaConsulta` implementada
-  (filtro recusa token de usuário excluído) e Swagger por `SWAGGER_HABILITADO`.
-- **`lancamento`:** CRUD, filtros (Specifications), status/lixeira e `LancamentoFacade` (ver "APIs públicas já prontas").
-- **`dashboard`** (✅ na `development`): `GET /api/dashboard` completo (RN003, RN008–RN010); ver "Decisões do módulo `dashboard`".
-- **`arquivo`** (✅ na `development`): importação CSV, exportação CSV/XLSX (Strategy + Factory) e template; decisões em "Formato CSV".
-- **Exportação de dados do titular** (RF016, ✅ na `development`): `GET /api/usuarios/me/dados`; estrutura do JSON no contrato "Perfil e privacidade".
 - **Escopo atual do backend: concluído.** Não há deploy: a apresentação e a entrega mostram o sistema **rodando localmente**
   (`docker compose up -d --build`; ver "Demonstração local" no README). Próximo passo do projeto: o front (design novo + telas).
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
-- Cards do Trello (Backlog) que são deste repo, em ordem sugerida:
-  1. **Configurar Infraestrutura Local** — `docker-compose.yml` + Flyway (schema aplicado ao subir a API).
-  2. **Camada de Domínio** — entidades JPA, enums, repositories, exceptions + handler global (módulo `shared` + `model` de cada módulo).
-  3. **Serviços e Segurança** — services (interface + `impl`), `JwtService`, `SecurityConfiguration`, `WebConfiguration`.
-  4. **Camada de API** — DTOs, mappers, resources (cadastro, login, CRUD de lançamentos e categorias, dashboard).
-  5. **Importação e Exportação em lote** — módulo `arquivo`.
-  6. **Template CSV** (`template.csv`) — ver "Formato CSV".
-  7. ~~**Deploy**~~ — fora do escopo (decisão de 12/11/2026): demonstração local com Docker.
 
 ## Stack
 
-| Item       | Escolha                                                                                                              |
-| ---------- | -------------------------------------------------------------------------------------------------------------------- |
-| Linguagem  | Java 21 (a máquina tem JDK 22 e compila para 21 sem problema)                                                         |
-| Framework  | **Spring Boot 4.1.2** (Web MVC, Data JPA, Validation, Security, Mail) + **Spring Modulith 2.1.2** (só o núcleo, sem registro de eventos) |
-| Build      | Maven **via wrapper** (`./mvnw`); não há `mvn` instalado globalmente                                                 |
-| Banco      | PostgreSQL (schema `poupamais`)                                                                                      |
-| Auth       | JWT stateless (`io.jsonwebtoken:jjwt-*`) + `BCryptPasswordEncoder`                                                   |
-| Arquivos   | Apache Commons CSV (CSV) e Apache POI `poi-ooxml` (`.xlsx`)                                                          |
-| E-mail     | `spring-boot-starter-mail` (SMTP). Local: **Mailpit** no docker-compose (UI em http://localhost:8025, SMTP na porta 1025) |
-| Extras     | Lombok (só `@Getter/@Setter/@RequiredArgsConstructor/@Builder`; **sem `@Data` em entidade**), springdoc-openapi 3.2 (Swagger), jjwt 0.12.7, POI 5.5.1, Commons CSV 1.14.1 |
-| Qualidade  | Spring Modulith `verify()` em teste, Spotless (google-java-format), JUnit 5 + Mockito + AssertJ, JaCoCo (piso de cobertura) |
-| Infra      | Docker / docker-compose                                                                                              |
+- Build com Maven **via wrapper** (`./mvnw`); não há `mvn` instalado globalmente. Java 21 (a máquina tem JDK 22 e compila para 21).
+- Lombok só `@Getter/@Setter/@RequiredArgsConstructor/@Builder`; **sem `@Data` em entidade**. Versões e dependências: `pom.xml`.
 
 ## Comandos
 
@@ -86,46 +57,7 @@ Pacote raiz: `br.com.poupamais`. Cada pacote direto abaixo da raiz é um módulo
 Regras do grafo: **sem ciclos**; `usuario` não é dependência de ninguém (o id do usuário logado vem de `shared.security.UsuarioLogado`).
 A exclusão de conta não precisa chamar os outros módulos: o banco apaga tudo em cascata a partir de `usuario`.
 
-### Estrutura de um módulo (exemplo: `lancamento`)
-
-```
-br.com.poupamais
-├── PoupaMaisApplication.java
-├── shared/                                # package-info.java com @ApplicationModule(type = OPEN)
-│   ├── config/        WebConfiguration (CORS)  (+ OpenApiConfig/JacksonConfig se precisar)
-│   ├── security/      SecurityConfiguration, JwtService, JwtAuthenticationFilter, ErroAutenticacaoEntryPoint,
-│   │                  UsuarioLogado, SenhaAlteradaConsulta
-│   ├── exception/     RegraNegocioException, RecursoNaoEncontradoException, ConflitoException,
-│   │                  ErroAutenticacaoException, ErroResponse, GlobalExceptionHandler
-│   └── domain/        Periodo (value object mês/ano), NomeMes
-├── lancamento/                            # exemplo completo; os outros módulos seguem o mesmo desenho
-│   ├── package-info.java                  # @ApplicationModule (a raiz do módulo fica só com isto)
-│   ├── publico/                           # @NamedInterface("publico"): ÚNICA parte visível aos outros módulos
-│   │   ├── LancamentoFacade.java          #   interface (implementada no service/impl)
-│   │   ├── dto/       LancamentoResumo, NovoLancamento, FiltroLancamento   (records)
-│   │   └── enums/     TipoLancamento, StatusLancamento (ATIVO, INATIVO, DELETADO; podeIrPara)
-│   ├── endpoints/                         # interno: adaptador de entrada HTTP
-│   │   ├── LancamentoResource.java
-│   │   ├── dto/       LancamentoRequest, LancamentoResponse, StatusRequest, LancamentoFiltroParams, CategoriaDoLancamentoResponse
-│   │   └── mappers/   LancamentoMapper
-│   ├── service/                           # interno: regras de negócio
-│   │   ├── LancamentoService.java, LancamentoValidator.java, LancamentoResumoConversor.java
-│   │   └── impl/      LancamentoServiceImpl   (também implementa LancamentoFacade)
-│   └── model/                             # interno: persistência
-│       ├── entidades/      Lancamento, CategoriaLancamento, CategoriaLancamentoId
-│       ├── repositories/   LancamentoRepository
-│       └── specifications/ LancamentoSpecifications
-├── categoria/   publico/ (CategoriaFacade · dto/CategoriaResumo) · endpoints/ (+ dto/, mappers/) · service/ (+ impl/) ·
-│                model/ (entidades/Categoria · repositories/CategoriaRepository)
-├── usuario/     endpoints/ (AuthResource, PerfilResource, PrivacidadeResource + dto/, mappers/UsuarioMapper) ·
-│                service/ (+ impl/, inclui SessaoUsuarioConsulta, ExportacaoDadosServiceImpl) · model/ (entidades/ ·
-│                repositories/) · sem publico/
-├── notificacao/ publico/ (EmailFacade · excecoes/EnvioEmailException) · service/impl/SmtpEmailService ·
-│                templates em src/main/resources/templates/email/
-├── dashboard/   endpoints/ (+ dto/) · service/ (ClassificacaoTaxa, RateioCategorias, MensagemSaldoFactory + impl/) ·
-│                sem model/ e sem publico/ (só lê pelas facades)
-└── arquivo/     endpoints/ (+ dto/) · service/importacao/ · service/exportacao/ · sem model/ e sem publico/
-```
+### Estrutura de um módulo
 
 **Regra de ouro:** só a pasta **`publico/`** (e as subpastas dela) é visível aos outros módulos; `endpoints/`, `service/` e `model/`
 são internos. Outro módulo **só** injeta a `XxxFacade` de `publico/` e usa os records/enums/exceções de `publico/dto`, `publico/enums`
@@ -623,19 +555,7 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 
 | # | Entrega | Situação | Inclui (além do contrato) |
 | --- | --- | --- | --- |
-| 1 | Segurança JWT | ✅ na `development` | — |
-| 2 | `notificacao` | ✅ na `development` | — |
-| 3 | `categoria` | ✅ na `development` | — |
-| 4 | `usuario` (cadastro, login, recuperação/redefinição, perfil, foto, troca de senha, exclusão de conta) | ✅ na `development` | `SenhaAlteradaConsulta` + recusa de usuário excluído ✅; Swagger por `SWAGGER_HABILITADO` ✅; `EnvioEmailException` capturada ✅ |
-| 5 | `lancamento` | ✅ na `development` | `LancamentoFacade` exatamente como definida acima |
-| 6 | Exportação de dados `GET /api/usuarios/me/dados` (RF016) | ✅ na `development` | usa `LancamentoFacade.listarTodos` e `CategoriaFacade.listarTodas` (nova, só leitura); estrutura do JSON no contrato. Pendente: replicar o contrato no `CLAUDE.md` do front |
-| 7 | `dashboard` | ✅ na `development` | — |
-| 8 | `arquivo` (importação, exportação, template) | ✅ na `development` | `CategoriaFacade.buscarPorDescricao` adicionada (categoria inativa e RN002 sem criar antes da hora); decisões em "Formato CSV" |
-| 10 | Correção: rota inexistente responde `500` (o `GlobalExceptionHandler` não trata `NoResourceFoundException`) | ✅ na `development` | — |
 | 9 | Deploy | ❌ fora do escopo (12/11/2026) | apresentação e entrega rodando localmente com `docker compose up -d --build` |
-| 11 | Flyway (schema em `db/migration`) + Docker da API (`Dockerfile`, serviço `api` no compose) | ✅ na `development` | — |
-| 12 | Pendência (`arquivo`): caso raro em que a importação cria a categoria nova e depois `LancamentoFacade.criar` recusa a linha; a categoria fica sem lançamentos | ✅ na `development` | categorias novas + lançamento na mesma transação por linha (`TransactionOperations` no `arquivo`); ver "Formato CSV" |
-| 13 | Reorganização de pastas: `publico/` (`@NamedInterface`), `endpoints/` (+ `dto/`, `mappers/`), `model/` (`entidades/`, `repositories/`, `specifications/`) | ✅ na `development` | só organização; nenhuma regra ou contrato mudou |
 | 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ na branch `chore/fechamento-backend`, aguardando PR | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
