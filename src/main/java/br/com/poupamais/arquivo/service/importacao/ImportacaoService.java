@@ -126,8 +126,7 @@ public class ImportacaoService {
       List<Long> ids = dados.categorias().stream().map(d -> resolver(d, novas)).toList();
       lancamentos.criar(
           idUsuario,
-          new NovoLancamento(
-              dados.descricao(), dados.tipo(), dados.mes(), dados.ano(), dados.valor(), ids));
+          new NovoLancamento(dados.descricao(), dados.tipo(), dados.data(), dados.valor(), ids));
     }
 
     private Long resolver(String descricao, Map<String, CategoriaResumo> novas) {

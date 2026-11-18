@@ -1,5 +1,6 @@
 package br.com.poupamais.shared.exception;
 
+import java.time.LocalDate;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,12 +14,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import tools.jackson.databind.exc.MismatchedInputException;
 
 /** Converte exceções no {@link ErroResponse}; nenhum controller precisa de try/catch (RNF007). */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
   private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+  static final String MSG_DATA_INVALIDA =
+      "Data inválida. Use o formato AAAA-MM-DD com um dia que exista.";
 
   @ExceptionHandler(MethodArgumentNotValidException.class)
   public ResponseEntity<ErroResponse> validacao(MethodArgumentNotValidException ex) {
@@ -31,6 +36,19 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(HttpMessageNotReadableException.class)
   public ResponseEntity<ErroResponse> corpoInvalido(HttpMessageNotReadableException ex) {
+    // Data que não existe ou fora do formato ISO (ex.: "2026-02-31"): erro no campo, como a
+    // validação
+    if (ex.getCause() instanceof MismatchedInputException mi
+        && mi.getTargetType() == LocalDate.class
+        && !mi.getPath().isEmpty()) {
+      String campo = mi.getPath().getLast().getPropertyName();
+      return resposta(
+          HttpStatus.BAD_REQUEST,
+          new ErroResponse(
+              400,
+              "Dados inválidos",
+              List.of(new ErroResponse.ErroCampo(campo, MSG_DATA_INVALIDA))));
+    }
     return resposta(
         HttpStatus.BAD_REQUEST,
         new ErroResponse(400, "Não foi possível ler os dados enviados. Confira o formato."));

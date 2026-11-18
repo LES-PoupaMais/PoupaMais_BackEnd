@@ -3,6 +3,8 @@ package br.com.poupamais.arquivo.service.importacao;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.domain.Periodo;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -32,9 +34,13 @@ public class ConversorLinha {
   static final String MSG_DESCRICAO_OBRIGATORIA = "A descrição é obrigatória";
   static final String MSG_DESCRICAO_LONGA = "A descrição deve ter no máximo 100 caracteres";
   static final String MSG_TIPO = "Tipo inválido: use RECEITA ou DESPESA";
-  static final String MSG_MES = "O mês deve ser um número entre 1 e 12";
-  static final String MSG_ANO =
-      "O ano deve ser um número entre " + Periodo.ANO_MINIMO + " e " + Periodo.ANO_MAXIMO;
+  static final String MSG_DATA_OBRIGATORIA = "A data é obrigatória (dd/mm/aaaa)";
+  static final String MSG_DATA_INVALIDA =
+      "Data inválida (%s). Use dd/mm/aaaa com um dia que exista.";
+  static final String MSG_DATA_FORA_DA_FAIXA =
+      "A data deve estar entre 01/01/" + Periodo.ANO_MINIMO + " e 31/12/" + Periodo.ANO_MAXIMO;
+  static final LocalDate DATA_MINIMA = LocalDate.of(Periodo.ANO_MINIMO, 1, 1);
+  static final LocalDate DATA_MAXIMA = LocalDate.of(Periodo.ANO_MAXIMO, 12, 31);
   static final String MSG_VALOR_OBRIGATORIO = "O valor é obrigatório";
   static final String MSG_VALOR_INVALIDO = "Valor inválido: use o formato 1234,56 ou 1234.56";
   static final String MSG_VALOR_POSITIVO = "O valor deve ser maior que zero";
@@ -54,11 +60,10 @@ public class ConversorLinha {
       throw new LinhaInvalidaException(MSG_DESCRICAO_LONGA);
     }
     TipoLancamento tipo = tipo(campos.get(LayoutCsv.TIPO));
-    int mes = inteiro(campos.get(LayoutCsv.MES), 1, 12, MSG_MES);
-    int ano = inteiro(campos.get(LayoutCsv.ANO), Periodo.ANO_MINIMO, Periodo.ANO_MAXIMO, MSG_ANO);
+    LocalDate data = data(campos.get(LayoutCsv.DATA));
     BigDecimal valor = valor(campos.get(LayoutCsv.VALOR));
     List<String> categorias = categorias(campos.get(LayoutCsv.CATEGORIAS));
-    return new DadosLinha(descricao, tipo, mes, ano, valor, categorias);
+    return new DadosLinha(descricao, tipo, data, valor, categorias);
   }
 
   private static String texto(String valor) {
@@ -73,16 +78,22 @@ public class ConversorLinha {
     }
   }
 
-  private static int inteiro(String valor, int minimo, int maximo, String mensagem) {
-    try {
-      int numero = Integer.parseInt(texto(valor));
-      if (numero < minimo || numero > maximo) {
-        throw new LinhaInvalidaException(mensagem);
-      }
-      return numero;
-    } catch (NumberFormatException e) {
-      throw new LinhaInvalidaException(mensagem);
+  /** {@code dd/mm/aaaa} estrito: dia e mês com 2 dígitos, ano com 4 e dia que exista no mês. */
+  static LocalDate data(String bruto) {
+    String valor = texto(bruto);
+    if (valor.isEmpty()) {
+      throw new LinhaInvalidaException(MSG_DATA_OBRIGATORIA);
     }
+    LocalDate data;
+    try {
+      data = LocalDate.parse(valor, LayoutCsv.FORMATO_DATA);
+    } catch (DateTimeParseException e) {
+      throw new LinhaInvalidaException(MSG_DATA_INVALIDA.formatted(valor));
+    }
+    if (data.isBefore(DATA_MINIMA) || data.isAfter(DATA_MAXIMA)) {
+      throw new LinhaInvalidaException(MSG_DATA_FORA_DA_FAIXA);
+    }
+    return data;
   }
 
   /** Ver regra do separador de milhar no Javadoc da classe. */

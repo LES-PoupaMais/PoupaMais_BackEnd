@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class LeitorCsvTest {
 
-  private static final String CABECALHO = "descricao;tipo;mes;ano;valor;categorias\n";
+  private static final String CABECALHO = "descricao;tipo;data;valor;categorias\n";
   private final LeitorCsv leitor = new LeitorCsv();
 
   private static byte[] utf8(String texto) {
@@ -23,19 +23,19 @@ class LeitorCsvTest {
         leitor.ler(
             utf8(
                 CABECALHO
-                    + "Salário;RECEITA;8;2026;8500,00;Salário\r\n\n  \nLuz;despesa;8;2026;1.5;Casa"));
+                    + "Salário;RECEITA;15/08/2026;8500,00;Salário\r\n\n  \nLuz;despesa;15/08/2026;1.5;Casa"));
 
     assertThat(linhas).hasSize(2);
     assertThat(linhas.get(0).numero()).isEqualTo(2);
     assertThat(linhas.get(0).campos()).containsEntry("descricao", "Salário");
     assertThat(linhas.get(1).numero()).isEqualTo(5);
-    assertThat(linhas.get(1).conteudo()).isEqualTo("Luz;despesa;8;2026;1.5;Casa");
+    assertThat(linhas.get(1).conteudo()).isEqualTo("Luz;despesa;15/08/2026;1.5;Casa");
   }
 
   @Test
   void deveAceitarBomCabecalhoComMaiusculasEspacosOrdemTrocadaEColunaStatus() {
     String texto =
-        "﻿ VALOR ; Descricao;TIPO;mes;ano;categorias;status\n10,00;Pão;DESPESA;8;2026;Mercado;ATIVO";
+        "﻿ VALOR ; Descricao;TIPO;data;categorias;status\n10,00;Pão;DESPESA;15/08/2026;Mercado;ATIVO";
 
     LinhaCsv linha = leitor.ler(utf8(texto)).getFirst();
 
@@ -49,7 +49,7 @@ class LeitorCsvTest {
   @Test
   void deveRespeitarAspasComPontoEVirgulaNaDescricao() {
     LinhaCsv linha =
-        leitor.ler(utf8(CABECALHO + "\"Feira; sábado\";DESPESA;8;2026;10;Mercado")).getFirst();
+        leitor.ler(utf8(CABECALHO + "\"Feira; sábado\";DESPESA;15/08/2026;10;Mercado")).getFirst();
 
     assertThat(linha.campos()).containsEntry("descricao", "Feira; sábado");
   }
@@ -60,7 +60,7 @@ class LeitorCsvTest {
         leitor.ler(
             utf8(
                 CABECALHO
-                    + "Pão;DESPESA;8;2026;10\nPão;DESPESA;8;2026;10;Mercado;extra\n\"aberta;x"));
+                    + "Pão;DESPESA;15/08/2026;10\nPão;DESPESA;15/08/2026;10;Mercado;extra\n\"aberta;x"));
 
     assertThat(linhas.get(0).erro()).startsWith("Faltam colunas");
     assertThat(linhas.get(1).erro()).startsWith("Colunas a mais");
@@ -76,7 +76,7 @@ class LeitorCsvTest {
 
   @Test
   void deveRecusarArquivoSemCabecalho() {
-    assertThatThrownBy(() -> leitor.ler(utf8("Pão;DESPESA;8;2026;10;Mercado\n")))
+    assertThatThrownBy(() -> leitor.ler(utf8("Pão;DESPESA;15/08/2026;10;Mercado\n")))
         .isInstanceOf(RegraNegocioException.class)
         .hasMessage(LeitorCsv.MSG_CABECALHO);
     assertThatThrownBy(() -> leitor.ler(utf8("\"quebrado\n"))).hasMessage(LeitorCsv.MSG_CABECALHO);
@@ -105,7 +105,7 @@ class LeitorCsvTest {
 
   @Test
   void deveRecusarArquivoComMaisDe5000Linhas() {
-    String linha = "Pão;DESPESA;8;2026;10;Mercado\n";
+    String linha = "Pão;DESPESA;15/08/2026;10;Mercado\n";
 
     assertThat(leitor.ler(utf8(CABECALHO + linha.repeat(5000)))).hasSize(5000);
     assertThatThrownBy(() -> leitor.ler(utf8(CABECALHO + linha.repeat(5001))))

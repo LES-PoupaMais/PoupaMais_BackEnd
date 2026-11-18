@@ -16,6 +16,9 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
@@ -49,11 +52,9 @@ public class Lancamento {
   @Column(nullable = false, length = 100)
   private String descricao;
 
+  /** Data do lançamento (RN001): dia, mês e ano; as listagens filtram pelo mês dela. */
   @Column(nullable = false)
-  private int mes;
-
-  @Column(nullable = false)
-  private int ano;
+  private LocalDate data;
 
   @Column(nullable = false, precision = 16, scale = 2)
   private BigDecimal valor;
@@ -68,10 +69,14 @@ public class Lancamento {
   private StatusLancamento status = StatusLancamento.ATIVO;
 
   @Column(name = "data_cadastro", nullable = false, updatable = false)
-  private LocalDate dataCadastro;
+  private OffsetDateTime dataCadastro;
 
   @Column(name = "data_atualizacao")
-  private LocalDate dataAtualizacao;
+  private OffsetDateTime dataAtualizacao;
+
+  /** Quando foi para a lixeira (DELETADO); volta a {@code null} ao restaurar. */
+  @Column(name = "data_exclusao")
+  private OffsetDateTime dataExclusao;
 
   @Builder.Default
   @Setter(lombok.AccessLevel.NONE)
@@ -81,13 +86,14 @@ public class Lancamento {
   @PrePersist
   void antesDeInserir() {
     if (dataCadastro == null) {
-      dataCadastro = LocalDate.now();
+      dataCadastro = agora();
     }
   }
 
   /**
    * Máquina de estados da RN006: valida a transição em {@link StatusLancamento#podeIrPara} e marca
-   * a data de atualização.
+   * a data de atualização. Ir para DELETADO grava {@code dataExclusao}; sair dele (restaurar)
+   * limpa.
    *
    * @throws RegraNegocioException (422) se a transição não for permitida
    */
@@ -97,6 +103,7 @@ public class Lancamento {
           MSG_TRANSICAO_INVALIDA.formatted(nomeStatus(status), nomeStatus(novo)));
     }
     status = novo;
+    dataExclusao = novo == StatusLancamento.DELETADO ? agora() : null;
     marcarAtualizacao();
   }
 
@@ -114,7 +121,12 @@ public class Lancamento {
   }
 
   public void marcarAtualizacao() {
-    dataAtualizacao = LocalDate.now();
+    dataAtualizacao = agora();
+  }
+
+  /** Instante atual em UTC, truncado em segundos (mesmo valor na resposta e depois de reler). */
+  private static OffsetDateTime agora() {
+    return OffsetDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
   }
 
   private static String nomeStatus(StatusLancamento s) {

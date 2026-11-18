@@ -14,12 +14,14 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
 
 /**
- * Planilha Excel (Apache POI): cabeçalho em negrito, mês/ano/valor numéricos, valor com 2 casas.
+ * Planilha Excel (Apache POI): cabeçalho em negrito, data como célula de data ({@code dd/mm/yyyy})
+ * e valor numérico com 2 casas.
  */
 @Component
 public class ExportadorXlsx implements ExportadorLancamentos {
 
   static final String ABA = "Lançamentos";
+  static final String FORMATO_DATA = "dd/mm/yyyy";
 
   @Override
   public String formato() {
@@ -42,6 +44,8 @@ public class ExportadorXlsx implements ExportadorLancamentos {
       negrito.setFont(fonte);
       CellStyle moeda = planilha.createCellStyle();
       moeda.setDataFormat(planilha.createDataFormat().getFormat("0.00"));
+      CellStyle data = planilha.createCellStyle();
+      data.setDataFormat(planilha.createDataFormat().getFormat(FORMATO_DATA));
 
       Row cabecalho = aba.createRow(0);
       List<String> colunas = ColunasExportacao.CABECALHO;
@@ -54,12 +58,12 @@ public class ExportadorXlsx implements ExportadorLancamentos {
         Row linha = aba.createRow(numero++);
         linha.createCell(0).setCellValue(l.descricao());
         linha.createCell(1).setCellValue(l.tipo().name());
-        linha.createCell(2).setCellValue(l.mes());
-        linha.createCell(3).setCellValue(l.ano());
-        linha.createCell(4).setCellValue(l.valor().setScale(2, RoundingMode.HALF_UP).doubleValue());
-        linha.getCell(4).setCellStyle(moeda);
-        linha.createCell(5).setCellValue(ColunasExportacao.categorias(l));
-        linha.createCell(6).setCellValue(l.status().name());
+        linha.createCell(2).setCellValue(l.data());
+        linha.getCell(2).setCellStyle(data);
+        linha.createCell(3).setCellValue(l.valor().setScale(2, RoundingMode.HALF_UP).doubleValue());
+        linha.getCell(3).setCellStyle(moeda);
+        linha.createCell(4).setCellValue(ColunasExportacao.categorias(l));
+        linha.createCell(5).setCellValue(l.status().name());
       }
       for (int i = 0; i < colunas.size(); i++) {
         aba.autoSizeColumn(i);

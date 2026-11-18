@@ -8,6 +8,7 @@ import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -24,11 +25,11 @@ class RateioCategoriasTest {
         id,
         "D" + id,
         TipoLancamento.DESPESA,
-        8,
-        2026,
+        LocalDate.of(2026, 8, 15),
         new BigDecimal(valor),
         StatusLancamento.ATIVO,
         List.of(cats),
+        null,
         null,
         null);
   }

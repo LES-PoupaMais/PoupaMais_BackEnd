@@ -1,5 +1,7 @@
 package br.com.poupamais.arquivo.service.importacao;
 
+import java.time.format.DateTimeFormatter;
+import java.time.format.ResolverStyle;
 import java.util.List;
 import org.apache.commons.csv.CSVFormat;
 
@@ -12,14 +14,17 @@ public final class LayoutCsv {
 
   public static final String DESCRICAO = "descricao";
   public static final String TIPO = "tipo";
-  public static final String MES = "mes";
-  public static final String ANO = "ano";
+  public static final String DATA = "data";
   public static final String VALOR = "valor";
   public static final String CATEGORIAS = "categorias";
   public static final String STATUS = "status";
 
   /** Colunas obrigatórias, na ordem do template. */
-  public static final List<String> COLUNAS = List.of(DESCRICAO, TIPO, MES, ANO, VALOR, CATEGORIAS);
+  public static final List<String> COLUNAS = List.of(DESCRICAO, TIPO, DATA, VALOR, CATEGORIAS);
+
+  /** Data no CSV: {@code dd/mm/aaaa}, estrita (31/02 é recusada). */
+  public static final DateTimeFormatter FORMATO_DATA =
+      DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT);
 
   /** Formato do Commons CSV: {@code ;}, aspas duplas quando preciso, quebra de linha CRLF. */
   public static final CSVFormat FORMATO =

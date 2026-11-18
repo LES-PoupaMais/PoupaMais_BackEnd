@@ -27,6 +27,7 @@ VARIAVEIS = {
     "novaSenha": "senha456",
     "mes": "11",
     "ano": "2026",
+    "data": "2026-11-05",
     "token": "",
     "categoriaId": "",
     "categoriaTempId": "",
@@ -58,8 +59,7 @@ FILTROS = [
 LANCAMENTO = """{
   "descricao": "Supermercado",
   "tipo": "DESPESA",
-  "mes": {{mes}},
-  "ano": {{ano}},
+  "data": "{{data}}",
   "valor": 680.00,
   "categoriaIds": [{{categoriaId}}]
 }"""
@@ -116,14 +116,20 @@ REQUISICOES = [
     # 04 · Lançamentos ----------------------------------------------------------------------
     r("04 Lançamentos", "Criar lançamento", "POST", "/api/lancamentos",
       json_body=LANCAMENTO, status=(201,), scripts=[("salvar", "lancamentoId", "id")],
-      doc="Guarda o id em `lancamentoId`. `categoriaIds` aceita várias categorias."),
+      doc="Guarda o id em `lancamentoId`. `data` em ISO (`AAAA-MM-DD`, variável `data`); "
+          "`categoriaIds` aceita várias categorias. A resposta traz `dataCadastro`, `dataAtualizacao` "
+          "e `dataExclusao` com hora (ISO-8601, UTC)."),
     r("04 Lançamentos", "Criar lançamento inválido (espera 400)", "POST", "/api/lancamentos",
-      json_body='{\n  "descricao": "",\n  "tipo": "DESPESA",\n  "mes": 13,\n  "ano": {{ano}},\n  "valor": 0,\n  "categoriaIds": []\n}',
-      status=(400,), doc="Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`."),
+      json_body='{\n  "descricao": "",\n  "tipo": "DESPESA",\n  "data": "2026-02-31",\n  "valor": 0,\n  "categoriaIds": []\n}',
+      status=(400,), doc="Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`. "
+          "`2026-02-31` não existe: **400** com erro no campo `data`."),
     r("04 Lançamentos", "Excluir categoria em uso (espera 422)", "DELETE", "/api/categorias/{{categoriaId}}",
       status=(422,)),
-    r("04 Lançamentos", "Listar lançamentos", "GET", "/api/lancamentos", query=FILTROS,
-      doc="Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira."),
+    r("04 Lançamentos", "Listar lançamentos", "GET", "/api/lancamentos",
+      query=FILTROS + [("pagina", "0", True), ("tamanho", "12", True)],
+      doc="Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira. "
+          "Paginado: `pagina` começa em 0 (padrão 0) e `tamanho` vai de 1 a 100 (padrão 12); fora disso, **400**. "
+          "Resposta: `{itens, pagina, tamanho, total, totalPaginas}`. A exportação não pagina."),
     r("04 Lançamentos", "Buscar lançamento", "GET", "/api/lancamentos/{{lancamentoId}}"),
     r("04 Lançamentos", "Editar lançamento", "PUT", "/api/lancamentos/{{lancamentoId}}",
       json_body=LANCAMENTO.replace("Supermercado", "Supermercado do mês").replace("680.00", "720.50")),

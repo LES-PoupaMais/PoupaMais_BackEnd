@@ -15,7 +15,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * CSV no layout da importação + {@code status}: {@code ;}, UTF-8 com BOM (o Excel pt-BR reconhece
- * os acentos) e valor com vírgula decimal ({@code 8500,00}). Reimportável sem ajustes.
+ * os acentos), data {@code dd/mm/aaaa} e valor com vírgula decimal ({@code 8500,00}). Reimportável
+ * sem ajustes.
  */
 @Component
 public class ExportadorCsv implements ExportadorLancamentos {
@@ -41,8 +42,7 @@ public class ExportadorCsv implements ExportadorLancamentos {
         csv.printRecord(
             l.descricao(),
             l.tipo().name(),
-            l.mes(),
-            l.ano(),
+            l.data().format(LayoutCsv.FORMATO_DATA),
             l.valor().setScale(2, RoundingMode.HALF_UP).toPlainString().replace('.', ','),
             ColunasExportacao.categorias(l),
             l.status().name());

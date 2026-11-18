@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
@@ -36,6 +37,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class ExportacaoDadosServiceImplTest {
+
+  private static final OffsetDateTime CADASTRO =
+      OffsetDateTime.of(2026, 8, 1, 12, 0, 0, 0, ZoneOffset.UTC);
+  private static final OffsetDateTime ATUALIZACAO =
+      OffsetDateTime.of(2026, 8, 10, 9, 15, 30, 0, ZoneOffset.UTC);
 
   private static final Long USUARIO = 1L;
   private static final Instant AGORA = Instant.parse("2026-11-12T18:30:45.123Z");
@@ -71,13 +77,13 @@ class ExportacaoDadosServiceImplTest {
         id,
         "Lançamento " + id,
         TipoLancamento.DESPESA,
-        8,
-        2026,
+        LocalDate.of(2026, 8, 31),
         new BigDecimal("120.50"),
         status,
         categorias,
-        LocalDate.of(2026, 8, 1),
-        status == StatusLancamento.ATIVO ? null : LocalDate.of(2026, 8, 10));
+        CADASTRO,
+        status == StatusLancamento.ATIVO ? null : ATUALIZACAO,
+        status == StatusLancamento.DELETADO ? ATUALIZACAO : null);
   }
 
   @Test
@@ -114,15 +120,17 @@ class ExportacaoDadosServiceImplTest {
     LancamentoExportado ativo = dados.lancamentos().get(2);
     assertThat(ativo.descricao()).isEqualTo("Lançamento 1");
     assertThat(ativo.tipo()).isEqualTo(TipoLancamento.DESPESA);
-    assertThat(ativo.mes()).isEqualTo(8);
-    assertThat(ativo.ano()).isEqualTo(2026);
+    assertThat(ativo.data()).isEqualTo(LocalDate.of(2026, 8, 31));
     assertThat(ativo.valor()).isEqualByComparingTo("120.50");
-    assertThat(ativo.dataCadastro()).isEqualTo(LocalDate.of(2026, 8, 1));
+    assertThat(ativo.dataCadastro()).isEqualTo(CADASTRO);
     assertThat(ativo.dataAtualizacao()).isNull();
+    assertThat(ativo.dataExclusao()).isNull();
     assertThat(ativo.categorias())
         .containsExactly(
             new CategoriaDoLancamento(10L, "Lazer"), new CategoriaDoLancamento(11L, "Antiga"));
-    assertThat(dados.lancamentos().get(0).dataAtualizacao()).isEqualTo(LocalDate.of(2026, 8, 10));
+    assertThat(dados.lancamentos().get(0).dataAtualizacao()).isEqualTo(ATUALIZACAO);
+    assertThat(dados.lancamentos().get(0).dataExclusao()).isEqualTo(ATUALIZACAO);
+    assertThat(dados.lancamentos().get(1).dataExclusao()).isNull();
   }
 
   @Test

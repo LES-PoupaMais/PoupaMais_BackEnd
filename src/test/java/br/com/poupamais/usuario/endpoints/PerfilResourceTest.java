@@ -41,6 +41,8 @@ import br.com.poupamais.usuario.service.PrivacidadeService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -309,13 +311,13 @@ class PerfilResourceTest {
                         9L,
                         "Cinema",
                         TipoLancamento.DESPESA,
-                        8,
-                        2026,
+                        LocalDate.of(2026, 8, 2),
                         new BigDecimal("45.90"),
                         StatusLancamento.DELETADO,
                         List.of(new CategoriaDoLancamento(3L, "Lazer")),
-                        LocalDate.of(2026, 8, 2),
-                        LocalDate.of(2026, 8, 3)))));
+                        OffsetDateTime.of(2026, 8, 2, 20, 0, 0, 0, ZoneOffset.UTC),
+                        OffsetDateTime.of(2026, 8, 3, 9, 30, 0, 0, ZoneOffset.UTC),
+                        OffsetDateTime.of(2026, 8, 3, 9, 30, 0, 0, ZoneOffset.UTC)))));
 
     mvc.perform(get("/api/usuarios/me/dados").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isOk())
@@ -335,7 +337,11 @@ class PerfilResourceTest {
         .andExpect(jsonPath("$.lancamentos[0].status").value("DELETADO"))
         .andExpect(jsonPath("$.lancamentos[0].valor").value(45.9))
         .andExpect(jsonPath("$.lancamentos[0].categorias[0].descricao").value("Lazer"))
-        .andExpect(jsonPath("$.lancamentos[0].dataAtualizacao").value("2026-08-03"));
+        .andExpect(jsonPath("$.lancamentos[0].data").value("2026-08-02"))
+        .andExpect(jsonPath("$.lancamentos[0].mes").doesNotExist())
+        .andExpect(jsonPath("$.lancamentos[0].dataCadastro").value("2026-08-02T20:00:00Z"))
+        .andExpect(jsonPath("$.lancamentos[0].dataAtualizacao").value("2026-08-03T09:30:00Z"))
+        .andExpect(jsonPath("$.lancamentos[0].dataExclusao").value("2026-08-03T09:30:00Z"));
   }
 
   @Test

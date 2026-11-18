@@ -190,6 +190,6 @@ class ArquivoResourceTest {
             content()
                 .string(
                     Matchers.startsWith(
-                        "descricao;tipo;mes;ano;valor;categorias\nSalário mensal;RECEITA;8;2026;8500,00;Salário")));
+                        "descricao;tipo;data;valor;categorias\nSalário mensal;RECEITA;05/08/2026;8500,00;Salário")));
   }
 }

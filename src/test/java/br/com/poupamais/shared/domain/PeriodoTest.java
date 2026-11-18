@@ -3,6 +3,7 @@ package br.com.poupamais.shared.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
@@ -70,5 +71,32 @@ class PeriodoTest {
   void ordenaPorAnoEDepoisPorMes() {
     assertThat(new Periodo(12, 2025)).isLessThan(new Periodo(1, 2026));
     assertThat(new Periodo(5, 2026).compareTo(new Periodo(5, 2026))).isZero();
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "1, 2026, 2026-01-01, 2026-01-31",
+    "2, 2026, 2026-02-01, 2026-02-28",
+    "2, 2028, 2028-02-01, 2028-02-29",
+    "4, 2026, 2026-04-01, 2026-04-30",
+    "12, 2100, 2100-12-01, 2100-12-31"
+  })
+  void inicioEFimSaoOPrimeiroEOUltimoDiaDoMes(int mes, int ano, LocalDate inicio, LocalDate fim) {
+    Periodo periodo = new Periodo(mes, ano);
+
+    assertThat(periodo.inicio()).isEqualTo(inicio);
+    assertThat(periodo.fim()).isEqualTo(fim);
+  }
+
+  @Test
+  void deUmaDataDevolveOMesDela() {
+    assertThat(Periodo.de(LocalDate.of(2026, 8, 31))).isEqualTo(new Periodo(8, 2026));
+    assertThat(Periodo.de(LocalDate.of(2026, 1, 1))).isEqualTo(new Periodo(1, 2026));
+  }
+
+  @Test
+  void deUmaDataForaDaFaixaRecusa() {
+    assertThatThrownBy(() -> Periodo.de(LocalDate.of(1999, 12, 31)))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 }

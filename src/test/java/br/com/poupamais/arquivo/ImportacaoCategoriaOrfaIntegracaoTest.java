@@ -73,8 +73,7 @@ class ImportacaoCategoriaOrfaIntegracaoTest {
                     new NovoLancamento(
                         novo.descricao(),
                         novo.tipo(),
-                        novo.mes(),
-                        novo.ano(),
+                        novo.data(),
                         BigDecimal.ZERO,
                         novo.categoriaIds());
               }
@@ -97,11 +96,11 @@ class ImportacaoCategoriaOrfaIntegracaoTest {
   @Test
   void naoDeveDeixarCategoriaOrfaQuandoCriarRecusaALinha() throws Exception {
     String csv =
-        "descricao;tipo;mes;ano;valor;categorias\n"
-            + "Ração;DESPESA;8;2026;80;Pets\n"
-            + "Recusada;DESPESA;8;2026;10;Orfa|Pets\n"
-            + "Passagem;DESPESA;8;2026;300;Viagem\n"
-            + "Recusada;DESPESA;8;2026;10;Viagem|Outra Orfa\n";
+        "descricao;tipo;data;valor;categorias\n"
+            + "Ração;DESPESA;15/08/2026;80;Pets\n"
+            + "Recusada;DESPESA;15/08/2026;10;Orfa|Pets\n"
+            + "Passagem;DESPESA;15/08/2026;300;Viagem\n"
+            + "Recusada;DESPESA;15/08/2026;10;Viagem|Outra Orfa\n";
 
     mvc.perform(
             multipart("/api/lancamentos/importar")

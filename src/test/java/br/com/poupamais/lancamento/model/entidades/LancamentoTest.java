@@ -2,14 +2,20 @@ package br.com.poupamais.lancamento.model.entidades;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.shared.exception.RegraNegocioException;
-import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import org.assertj.core.data.TemporalUnitOffset;
 import org.junit.jupiter.api.Test;
 
 class LancamentoTest {
+
+  private static final TemporalUnitOffset PROXIMO = within(5, ChronoUnit.SECONDS);
 
   private static Lancamento comStatus(StatusLancamento status) {
     return Lancamento.builder().id(1L).idUsuario(9L).status(status).build();
@@ -30,7 +36,25 @@ class LancamentoTest {
     lancamento.alterarStatus(StatusLancamento.INATIVO);
 
     assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.INATIVO);
-    assertThat(lancamento.getDataAtualizacao()).isEqualTo(LocalDate.now());
+    assertThat(lancamento.getDataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+    assertThat(lancamento.getDataAtualizacao().getOffset()).isEqualTo(ZoneOffset.UTC);
+    assertThat(lancamento.getDataAtualizacao().getNano()).isZero();
+    assertThat(lancamento.getDataExclusao()).isNull();
+  }
+
+  @Test
+  void deveGravarDataDeExclusaoAoIrParaALixeiraELimparAoRestaurar() {
+    Lancamento lancamento = comStatus(StatusLancamento.ATIVO);
+
+    lancamento.alterarStatus(StatusLancamento.DELETADO);
+
+    assertThat(lancamento.getDataExclusao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+    assertThat(lancamento.getDataAtualizacao()).isEqualTo(lancamento.getDataExclusao());
+
+    lancamento.alterarStatus(StatusLancamento.INATIVO);
+
+    assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(lancamento.getDataExclusao()).isNull();
   }
 
   @Test
@@ -58,13 +82,14 @@ class LancamentoTest {
   void devePreencherDataDeCadastroAoInserirSemSobrescrever() {
     Lancamento novo = comStatus(StatusLancamento.ATIVO);
     Lancamento antigo = comStatus(StatusLancamento.ATIVO);
-    antigo.setDataCadastro(LocalDate.of(2026, 1, 1));
+    OffsetDateTime cadastro = OffsetDateTime.of(2026, 1, 1, 10, 0, 0, 0, ZoneOffset.UTC);
+    antigo.setDataCadastro(cadastro);
 
     novo.antesDeInserir();
     antigo.antesDeInserir();
 
-    assertThat(novo.getDataCadastro()).isEqualTo(LocalDate.now());
-    assertThat(antigo.getDataCadastro()).isEqualTo(LocalDate.of(2026, 1, 1));
+    assertThat(novo.getDataCadastro()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+    assertThat(antigo.getDataCadastro()).isEqualTo(cadastro);
   }
 
   @Test

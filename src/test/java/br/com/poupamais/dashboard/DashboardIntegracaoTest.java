@@ -12,6 +12,7 @@ import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.security.JwtService;
 import java.math.BigDecimal;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -79,7 +80,15 @@ class DashboardIntegracaoTest {
       String valor,
       List<Long> cats) {
     return lancamentos
-        .criar(dono, new NovoLancamento(descricao, tipo, mes, ano, new BigDecimal(valor), cats))
+        .criar(
+            dono,
+            new NovoLancamento(
+                // último dia do mês: "Antigo" (30/09) fica fora e "Luz" (31/10) dentro da janela
+                descricao,
+                tipo,
+                YearMonth.of(ano, mes).atEndOfMonth(),
+                new BigDecimal(valor),
+                cats))
         .id();
   }
 
