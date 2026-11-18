@@ -4,6 +4,7 @@ import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse;
 import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.MaiorDespesa;
 import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.MesResumo;
+import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.PesoMaioresDespesas;
 import br.com.poupamais.dashboard.service.ClassificacaoTaxa;
 import br.com.poupamais.dashboard.service.DashboardService;
 import br.com.poupamais.dashboard.service.MensagemSaldoFactory;
@@ -55,6 +56,9 @@ public class DashboardServiceImpl implements DashboardService {
     List<LancamentoResumo> despesas =
         doMes.stream().filter(l -> l.tipo() == TipoLancamento.DESPESA).toList();
 
+    List<MaiorDespesa> maiores =
+        despesas.stream().sorted(RANKING).limit(TAMANHO_RANKING).map(this::maior).toList();
+
     BigDecimal taxa = taxaGasto(selecionado.receitas(), selecionado.despesas());
     return new DashboardResponse(
         periodo.mes(),
@@ -67,7 +71,8 @@ public class DashboardServiceImpl implements DashboardService {
         mensagens.criar(periodo, selecionado.saldo(), !doMes.isEmpty()),
         ultimosMeses,
         rateio.ratear(despesas),
-        despesas.stream().sorted(RANKING).limit(TAMANHO_RANKING).map(this::maior).toList());
+        maiores,
+        pesoMaiores(maiores, selecionado.despesas()));
   }
 
   private MesResumo resumir(Periodo periodo, List<LancamentoResumo> doMes) {
@@ -90,6 +95,22 @@ public class DashboardServiceImpl implements DashboardService {
       return null;
     }
     return despesas.multiply(CEM).divide(receitas, 2, RoundingMode.HALF_UP);
+  }
+
+  /**
+   * Soma das maiores despesas e percentual sobre o total de despesas do mês, com 2 casas ({@code
+   * HALF_UP}); {@code percentual} é {@code null} se não houver despesa.
+   */
+  static PesoMaioresDespesas pesoMaiores(List<MaiorDespesa> maiores, BigDecimal totalDespesas) {
+    BigDecimal valor =
+        maiores.stream()
+            .map(MaiorDespesa::valor)
+            .reduce(BigDecimal.ZERO.setScale(2), BigDecimal::add);
+    if (totalDespesas.signum() == 0) {
+      return new PesoMaioresDespesas(valor, null);
+    }
+    return new PesoMaioresDespesas(
+        valor, valor.multiply(CEM).divide(totalDespesas, 2, RoundingMode.HALF_UP));
   }
 
   private MaiorDespesa maior(LancamentoResumo despesa) {
