@@ -2,9 +2,12 @@ package br.com.poupamais.categoria.service.impl;
 
 import br.com.poupamais.categoria.model.entidades.Categoria;
 import br.com.poupamais.categoria.model.repositories.CategoriaRepository;
+import br.com.poupamais.categoria.model.repositories.CategoriaRepository.QuantidadePorCategoria;
 import br.com.poupamais.categoria.publico.CategoriaFacade;
 import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
+import br.com.poupamais.categoria.service.CategoriaComQuantidade;
 import br.com.poupamais.categoria.service.CategoriaService;
+import br.com.poupamais.shared.domain.Periodo;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -58,6 +61,22 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
     return ativa == null
         ? repository.listarDoUsuario(idUsuario)
         : repository.listarDoUsuarioPorStatus(idUsuario, ativa);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<CategoriaComQuantidade> listarComQuantidade(
+      Long idUsuario, Boolean ativa, Periodo periodo) {
+    Map<Long, Long> quantidades =
+        repository
+            .contarLancamentosPorCategoria(idUsuario, periodo.inicio(), periodo.fim())
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    QuantidadePorCategoria::getIdCategoria, QuantidadePorCategoria::getQuantidade));
+    return listar(idUsuario, ativa).stream()
+        .map(c -> new CategoriaComQuantidade(c, quantidades.getOrDefault(c.getId(), 0L)))
+        .toList();
   }
 
   @Override

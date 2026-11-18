@@ -358,7 +358,17 @@ Exportação de dados do titular (`GET /api/usuarios/me/dados`, decidido em `fea
 **Categorias** (módulo `categoria`, RF011 / UC009). Não há tela própria no front: criar e editar são feitos por modais abertos
 no dropdown de categorias do formulário de lançamento. Por isso o `POST` devolve a categoria criada, que o front já seleciona.
 
-- `GET /api/categorias?ativa=true|false` (sem param = todas)
+- `GET /api/categorias?ativa=true|false&mes=&ano=` (sem `ativa` = todas) → `200 [{id, descricao, ativa, quantidadeLancamentos}]`.
+  `quantidadeLancamentos` = lançamentos **ATIVO e INATIVO** do usuário com essa categoria cuja `data` cai no mês `mes`/`ano`
+  (do dia 1 ao último dia; DELETADO e outros meses não contam; sem lançamento → `0`; lançamento com 2 categorias conta nas duas).
+  `mes`/`ano` opcionais e com a mesma validação do dashboard: o que faltar vem de `Periodo.atual()` (fuso de Brasília); fora de
+  1–12 / 2000–2100 ou não numérico → `400` "Dados inválidos" com `erros[{campo, mensagem}]`. Eles **não filtram** quais categorias
+  vêm (só o `ativa` filtra) nem mudam a ordenação. Uma única consulta agregada (`CategoriaRepository.contarLancamentosPorCategoria`,
+  nativa com `group by`, sem N+1). `POST`/`PUT`/`PATCH` continuam devolvendo `{id, descricao, ativa}` (sem a contagem).
+  ```json
+  [{ "id": 3, "descricao": "Lazer", "ativa": true, "quantidadeLancamentos": 4 },
+   { "id": 8, "descricao": "Viagem", "ativa": false, "quantidadeLancamentos": 0 }]
+  ```
 - `POST /api/categorias` `{descricao}` → `201 {id, descricao, ativa}` · duplicada (case-insensitive) → `409`
 - `PUT /api/categorias/{id}` `{descricao}`
 - `PATCH /api/categorias/{id}/status` `{ativa: boolean}`
@@ -369,8 +379,8 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
   `listarTodas(idUsuario)` (ativas e inativas, mesma ordem do `GET` sem filtro),
   `validarAtivasDoUsuario(idUsuario, ids)` → **`404` "Categoria não encontrada"** se alguma não existir ou for de outro usuário (RN005)
   e **`422`** se alguma estiver inativa, `buscarOuCriar(idUsuario, descricao)` (não reativa inativa), `criarPadroes(idUsuario)`.
-- O bloqueio do `DELETE` consulta `poupamais.categorias_lancamentos` por **query nativa** no `CategoriaRepository`
-  (o módulo `categoria` não pode depender de `lancamento`). Corrida no índice único `lower(descricao)` → `409`.
+- O bloqueio do `DELETE` e a contagem `quantidadeLancamentos` consultam `poupamais.categorias_lancamentos` (e `lancamento`) por
+  **query nativa** no `CategoriaRepository` (o módulo `categoria` não pode depender de `lancamento`: criaria ciclo). Corrida no índice único `lower(descricao)` → `409`.
 
 **Lançamentos** (módulo `lancamento`, RF001–RF005, RF008 / UC001, UC002, UC004, UC010)
 
@@ -594,7 +604,10 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | # | Entrega | Situação | Inclui (além do contrato) |
 | --- | --- | --- | --- |
 | 9 | Deploy | ❌ fora do escopo (12/11/2026) | apresentação e entrega rodando localmente com `docker compose up -d --build` |
-| 15 | Lançamento com data completa + auditoria com hora (Fase A: RN001 revista em 18/11/2026) | ✅ na branch `feat/data-completa-lancamento`, aguardando PR | `V2__lancamento_data_completa.sql`; `data` ISO no contrato; `dataCadastro`/`dataAtualizacao`/`dataExclusao` com hora; CSV `descricao;tipo;data;valor;categorias` (dd/mm/aaaa); XLSX com célula de data; LGPD; coleções. **Depois, em cima desta branch:** paginação do `GET /lancamentos`, `quantidadeLancamentos` em categorias e `pesoMaioresDespesas` no dashboard. Front: espelhar o contrato no `CLAUDE.md` do front |
+| 15 | Lançamento com data completa + auditoria com hora (Fase A: RN001 revista em 18/11/2026) | ✅ na branch `feat/data-completa-lancamento`, aguardando PR | `V2__lancamento_data_completa.sql`; `data` ISO no contrato; `dataCadastro`/`dataAtualizacao`/`dataExclusao` com hora; CSV `descricao;tipo;data;valor;categorias` (dd/mm/aaaa); XLSX com célula de data; LGPD; coleções. Front: espelhar o contrato no `CLAUDE.md` do front |
+| 16 | `pesoMaioresDespesas` no dashboard (Q4) | ✅ branch `feat/peso-maiores-despesas` (também incluída na 15), aguardando PR | Soma das 5 maiores e % sobre as despesas do mês (2 casas, `HALF_UP`; `null` sem despesa) |
+| 17 | Paginação do `GET /lancamentos` (Q3) | ✅ branch `feat/paginacao-lancamentos` (sobre a 15), aguardando PR | `pagina`/`tamanho` (padrão 12, máx. 100); `{itens,pagina,tamanho,total,totalPaginas}`; exportação e Facade sem paginar. Pendência: `pagina=abc`/`mes=abc` dão 400 com mensagem do Spring em inglês |
+| 18 | `quantidadeLancamentos` em `GET /categorias?mes&ano` (Q2) | ✅ branch `feat/categoria-quantidade-lancamentos` (sobre a 17), aguardando PR | Query nativa agregada no `CategoriaRepository` (evita ciclo categoria→lancamento). Pendência: validação de `mes`/`ano` repetida em `CategoriaListagemParams` e `DashboardParams` (juntar num `PeriodoParams` em `shared`) |
 | 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ na branch `chore/fechamento-backend`, aguardando PR | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.

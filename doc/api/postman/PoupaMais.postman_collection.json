@@ -550,10 +550,20 @@
                   "key": "ativa",
                   "value": "true",
                   "disabled": true
+                },
+                {
+                  "key": "mes",
+                  "value": "{{mes}}",
+                  "disabled": true
+                },
+                {
+                  "key": "ano",
+                  "value": "{{ano}}",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Sem `ativa` lista todas; `ativa=true` ou `false` filtra."
+            "description": "Sem `ativa` lista todas; `ativa=true` ou `false` filtra. Cada categoria traz `quantidadeLancamentos`: lançamentos ATIVO e INATIVO cuja `data` cai em `mes`/`ano` (sem eles, o mês atual; DELETADO não conta). `mes`/`ano` não filtram as categorias. Mês fora de 1–12 ou ano fora de 2000–2100 → **400**."
           },
           "event": [
             {

@@ -99,8 +99,10 @@ REQUISICOES = [
       scripts=[("salvar", "categoriaId", "id")],
       doc="Guarda o id em `categoriaId`. **409** se já existir uma com a mesma descrição (sem diferenciar maiúsculas)."),
     r("03 Categorias", "Listar categorias", "GET", "/api/categorias",
-      query=[("ativa", "true", False)],
-      doc="Sem `ativa` lista todas; `ativa=true` ou `false` filtra."),
+      query=[("ativa", "true", False), ("mes", "{{mes}}", False), ("ano", "{{ano}}", False)],
+      doc="Sem `ativa` lista todas; `ativa=true` ou `false` filtra. Cada categoria traz `quantidadeLancamentos`: "
+          "lançamentos ATIVO e INATIVO cuja `data` cai em `mes`/`ano` (sem eles, o mês atual; DELETADO não conta). "
+          "`mes`/`ano` não filtram as categorias. Mês fora de 1–12 ou ano fora de 2000–2100 → **400**."),
     r("03 Categorias", "Editar categoria", "PUT", "/api/categorias/{{categoriaId}}",
       json_body='{\n  "descricao": "Supermercado {{$timestamp}}"\n}'),
     r("03 Categorias", "Inativar categoria", "PATCH", "/api/categorias/{{categoriaId}}/status",
