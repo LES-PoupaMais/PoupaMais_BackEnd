@@ -550,10 +550,20 @@
                   "key": "ativa",
                   "value": "true",
                   "disabled": true
+                },
+                {
+                  "key": "mes",
+                  "value": "{{mes}}",
+                  "disabled": true
+                },
+                {
+                  "key": "ano",
+                  "value": "{{ano}}",
+                  "disabled": true
                 }
               ]
             },
-            "description": "Sem `ativa` lista todas; `ativa=true` ou `false` filtra."
+            "description": "Sem `ativa` lista todas; `ativa=true` ou `false` filtra. Cada categoria traz `quantidadeLancamentos`: lançamentos ATIVO e INATIVO cuja `data` cai em `mes`/`ano` (sem eles, o mês atual; DELETADO não conta). `mes`/`ano` não filtram as categorias. Mês fora de 1–12 ou ano fora de 2000–2100 → **400**."
           },
           "event": [
             {
@@ -920,7 +930,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/lancamentos",
+              "raw": "{{baseUrl}}/api/lancamentos?pagina=0&tamanho=12",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -958,10 +968,20 @@
                   "key": "categoriaId",
                   "value": "{{categoriaId}}",
                   "disabled": true
+                },
+                {
+                  "key": "pagina",
+                  "value": "0",
+                  "disabled": false
+                },
+                {
+                  "key": "tamanho",
+                  "value": "12",
+                  "disabled": false
                 }
               ]
             },
-            "description": "Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira."
+            "description": "Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira. Paginado: `pagina` começa em 0 (padrão 0) e `tamanho` vai de 1 a 100 (padrão 12); fora disso, **400**. Resposta: `{itens, pagina, tamanho, total, totalPaginas}`. A exportação não pagina."
           },
           "event": [
             {

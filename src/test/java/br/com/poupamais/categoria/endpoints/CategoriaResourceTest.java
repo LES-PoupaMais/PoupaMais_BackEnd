@@ -1,7 +1,10 @@
 package br.com.poupamais.categoria.endpoints;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -13,8 +16,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import br.com.poupamais.categoria.endpoints.mappers.CategoriaMapper;
 import br.com.poupamais.categoria.model.entidades.Categoria;
+import br.com.poupamais.categoria.service.CategoriaComQuantidade;
 import br.com.poupamais.categoria.service.CategoriaService;
 import br.com.poupamais.shared.config.WebConfiguration;
+import br.com.poupamais.shared.domain.Periodo;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -23,6 +28,8 @@ import br.com.poupamais.shared.security.SecurityConfiguration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -59,13 +66,73 @@ class CategoriaResourceTest {
 
   @Test
   void deveListarCategoriasDoUsuarioLogado() throws Exception {
-    when(service.listar(USUARIO, true)).thenReturn(List.of(categoria(1L, "Lazer", true)));
+    when(service.listarComQuantidade(USUARIO, true, Periodo.atual()))
+        .thenReturn(List.of(new CategoriaComQuantidade(categoria(1L, "Lazer", true), 0)));
 
     mvc.perform(get("/api/categorias?ativa=true").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].id").value(1))
         .andExpect(jsonPath("$[0].descricao").value("Lazer"))
-        .andExpect(jsonPath("$[0].ativa").value(true));
+        .andExpect(jsonPath("$[0].ativa").value(true))
+        .andExpect(jsonPath("$[0].quantidadeLancamentos").value(0));
+  }
+
+  @Test
+  void deveListarComQuantidadeDeLancamentosDoMesInformado() throws Exception {
+    when(service.listarComQuantidade(USUARIO, null, new Periodo(8, 2026)))
+        .thenReturn(
+            List.of(
+                new CategoriaComQuantidade(categoria(3L, "Lazer", true), 5),
+                new CategoriaComQuantidade(categoria(1L, "Antiga", false), 0)));
+
+    mvc.perform(get("/api/categorias?mes=8&ano=2026").header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.length()").value(2))
+        .andExpect(jsonPath("$[0].id").value(3))
+        .andExpect(jsonPath("$[0].quantidadeLancamentos").value(5))
+        .andExpect(jsonPath("$[1].ativa").value(false))
+        .andExpect(jsonPath("$[1].quantidadeLancamentos").value(0));
+  }
+
+  @Test
+  void deveCompletarComOMesOuAnoAtualQuandoSoUmVier() throws Exception {
+    Periodo atual = Periodo.atual();
+    when(service.listarComQuantidade(any(), any(), any())).thenReturn(List.of());
+
+    mvc.perform(get("/api/categorias?mes=2").header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isOk());
+    mvc.perform(get("/api/categorias?ano=2025").header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isOk());
+
+    verify(service).listarComQuantidade(USUARIO, null, new Periodo(2, atual.ano()));
+    verify(service).listarComQuantidade(USUARIO, null, new Periodo(atual.mes(), 2025));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "mes=0&ano=2026",
+        "mes=13&ano=2026",
+        "mes=8&ano=1999",
+        "mes=8&ano=2101",
+        "mes=abc",
+        "ano=xyz"
+      })
+  void deveDevolver400ParaMesOuAnoInvalido(String query) throws Exception {
+    mvc.perform(get("/api/categorias?" + query).header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.erros[0].campo").exists());
+
+    verifyNoInteractions(service);
+  }
+
+  @Test
+  void deveDevolverMensagemDoMesForaDaFaixa() throws Exception {
+    mvc.perform(get("/api/categorias?mes=13").header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("mes"))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("O mês deve estar entre 1 e 12"));
   }
 
   @Test

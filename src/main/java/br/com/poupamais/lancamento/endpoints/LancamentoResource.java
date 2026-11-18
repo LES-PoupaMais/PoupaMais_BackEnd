@@ -3,12 +3,13 @@ package br.com.poupamais.lancamento.endpoints;
 import br.com.poupamais.lancamento.endpoints.dto.LancamentoFiltroParams;
 import br.com.poupamais.lancamento.endpoints.dto.LancamentoRequest;
 import br.com.poupamais.lancamento.endpoints.dto.LancamentoResponse;
+import br.com.poupamais.lancamento.endpoints.dto.PaginaResponse;
+import br.com.poupamais.lancamento.endpoints.dto.PaginacaoParams;
 import br.com.poupamais.lancamento.endpoints.dto.StatusRequest;
 import br.com.poupamais.lancamento.endpoints.mappers.LancamentoMapper;
 import br.com.poupamais.lancamento.service.LancamentoService;
 import br.com.poupamais.shared.security.UsuarioLogado;
 import jakarta.validation.Valid;
-import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -33,8 +34,15 @@ public class LancamentoResource {
   private final LancamentoMapper mapper;
 
   @GetMapping
-  public List<LancamentoResponse> listar(@ModelAttribute LancamentoFiltroParams filtro) {
-    return mapper.paraResponse(service.listar(UsuarioLogado.id(), mapper.paraFiltro(filtro)));
+  public PaginaResponse<LancamentoResponse> listar(
+      @ModelAttribute LancamentoFiltroParams filtro,
+      @Valid @ModelAttribute PaginacaoParams paginacao) {
+    return mapper.paraResponse(
+        service.listarPagina(
+            UsuarioLogado.id(),
+            mapper.paraFiltro(filtro),
+            paginacao.pagina(),
+            paginacao.tamanho()));
   }
 
   @GetMapping("/{id}")

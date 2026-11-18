@@ -11,14 +11,19 @@ import static org.mockito.Mockito.when;
 
 import br.com.poupamais.categoria.model.entidades.Categoria;
 import br.com.poupamais.categoria.model.repositories.CategoriaRepository;
+import br.com.poupamais.categoria.model.repositories.CategoriaRepository.QuantidadePorCategoria;
 import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
+import br.com.poupamais.categoria.service.CategoriaComQuantidade;
+import br.com.poupamais.shared.domain.Periodo;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import org.assertj.core.groups.Tuple;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -165,6 +170,57 @@ class CategoriaServiceImplTest {
 
     assertThatThrownBy(() -> service.excluir(USUARIO, 9L))
         .isInstanceOf(RecursoNaoEncontradoException.class);
+  }
+
+  private static QuantidadePorCategoria quantidade(Long idCategoria, long quantidade) {
+    return new QuantidadePorCategoria() {
+      @Override
+      public Long getIdCategoria() {
+        return idCategoria;
+      }
+
+      @Override
+      public Long getQuantidade() {
+        return quantidade;
+      }
+    };
+  }
+
+  @Test
+  void deveListarComQuantidadeDeLancamentosNoIntervaloDoMesMantendoAOrdem() {
+    Categoria lazer = categoria(3L, "Lazer", true);
+    Categoria moradia = categoria(1L, "Moradia", true);
+    Categoria antiga = categoria(2L, "Antiga", false);
+    when(repository.listarDoUsuario(USUARIO)).thenReturn(List.of(lazer, moradia, antiga));
+    when(repository.contarLancamentosPorCategoria(
+            USUARIO, LocalDate.of(2024, 2, 1), LocalDate.of(2024, 2, 29)))
+        .thenReturn(List.of(quantidade(1L, 4), quantidade(3L, 1), quantidade(99L, 7)));
+
+    List<CategoriaComQuantidade> itens =
+        service.listarComQuantidade(USUARIO, null, new Periodo(2, 2024));
+
+    assertThat(itens)
+        .extracting(i -> i.categoria().getId(), CategoriaComQuantidade::quantidadeLancamentos)
+        .containsExactly(Tuple.tuple(3L, 1L), Tuple.tuple(1L, 4L), Tuple.tuple(2L, 0L));
+  }
+
+  @Test
+  void deveListarComQuantidadeRespeitandoOFiltroDeStatus() {
+    when(repository.listarDoUsuarioPorStatus(USUARIO, false))
+        .thenReturn(List.of(categoria(2L, "Antiga", false)));
+    when(repository.contarLancamentosPorCategoria(
+            USUARIO, LocalDate.of(2026, 11, 1), LocalDate.of(2026, 11, 30)))
+        .thenReturn(List.of());
+
+    List<CategoriaComQuantidade> itens =
+        service.listarComQuantidade(USUARIO, false, new Periodo(11, 2026));
+
+    assertThat(itens)
+        .singleElement()
+        .satisfies(i -> {
+          assertThat(i.categoria().getDescricao()).isEqualTo("Antiga");
+          assertThat(i.quantidadeLancamentos()).isZero();
+        });
   }
 
   @Test
