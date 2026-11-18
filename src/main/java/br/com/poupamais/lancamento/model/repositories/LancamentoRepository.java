@@ -13,8 +13,8 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 public interface LancamentoRepository
     extends JpaRepository<Lancamento, Long>, JpaSpecificationExecutor<Lancamento> {
 
-  /** Ordenação da listagem: ano, mês e id decrescentes. */
-  Sort ORDENACAO = Sort.by(Sort.Order.desc("ano"), Sort.Order.desc("mes"), Sort.Order.desc("id"));
+  /** Ordenação da listagem: data e id decrescentes (mais recente primeiro; empate estável). */
+  Sort ORDENACAO = Sort.by(Sort.Order.desc("data"), Sort.Order.desc("id"));
 
   @EntityGraph(attributePaths = "categorias")
   Optional<Lancamento> findByIdAndIdUsuario(Long id, Long idUsuario);

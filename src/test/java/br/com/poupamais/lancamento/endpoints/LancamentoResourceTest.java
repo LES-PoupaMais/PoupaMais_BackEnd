@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -29,6 +30,8 @@ import br.com.poupamais.shared.security.JwtService;
 import br.com.poupamais.shared.security.SecurityConfiguration;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,7 +56,7 @@ class LancamentoResourceTest {
   private static final Long USUARIO = 7L;
   private static final String CORPO =
       """
-      {"descricao":"Salário mensal","tipo":"RECEITA","mes":8,"ano":2026,
+      {"descricao":"Salário mensal","tipo":"RECEITA","data":"2026-08-05",
        "valor":8500.00,"categoriaIds":[3]}
       """;
 
@@ -73,12 +76,12 @@ class LancamentoResourceTest {
         1L,
         "Salário mensal",
         TipoLancamento.RECEITA,
-        8,
-        2026,
+        LocalDate.of(2026, 8, 5),
         new BigDecimal("8500.00"),
         status,
         List.of(new CategoriaResumo(3L, "Salário", true)),
-        LocalDate.of(2026, 8, 1),
+        OffsetDateTime.of(2026, 8, 1, 13, 5, 0, 0, ZoneOffset.UTC),
+        null,
         null);
   }
 
@@ -107,15 +110,17 @@ class LancamentoResourceTest {
         .andExpect(jsonPath("$[0].id").value(1))
         .andExpect(jsonPath("$[0].descricao").value("Salário mensal"))
         .andExpect(jsonPath("$[0].tipo").value("RECEITA"))
-        .andExpect(jsonPath("$[0].mes").value(8))
-        .andExpect(jsonPath("$[0].ano").value(2026))
+        .andExpect(jsonPath("$[0].data").value("2026-08-05"))
+        .andExpect(jsonPath("$[0].mes").doesNotExist())
+        .andExpect(jsonPath("$[0].ano").doesNotExist())
         .andExpect(jsonPath("$[0].valor").value(8500.0))
         .andExpect(jsonPath("$[0].status").value("ATIVO"))
         .andExpect(jsonPath("$[0].categorias[0].id").value(3))
         .andExpect(jsonPath("$[0].categorias[0].descricao").value("Salário"))
         .andExpect(jsonPath("$[0].categorias[0].ativa").doesNotExist())
-        .andExpect(jsonPath("$[0].dataCadastro").value("2026-08-01"))
-        .andExpect(jsonPath("$[0].dataAtualizacao").doesNotExist());
+        .andExpect(jsonPath("$[0].dataCadastro").value("2026-08-01T13:05:00Z"))
+        .andExpect(jsonPath("$[0].dataAtualizacao").doesNotExist())
+        .andExpect(jsonPath("$[0].dataExclusao").doesNotExist());
   }
 
   @Test
@@ -196,8 +201,7 @@ class LancamentoResourceTest {
         new NovoLancamento(
             "Salário mensal",
             TipoLancamento.RECEITA,
-            8,
-            2026,
+            LocalDate.of(2026, 8, 5),
             new BigDecimal("8500.00"),
             List.of(3L));
     when(service.criar(USUARIO, esperado)).thenReturn(resumo(StatusLancamento.ATIVO));
@@ -214,11 +218,12 @@ class LancamentoResourceTest {
             json(
                 post("/api/lancamentos"),
                 """
-                {"descricao":"","tipo":null,"mes":13,"ano":1999,"valor":0,"categoriaIds":[]}
+                {"descricao":"","tipo":null,"data":null,"valor":0,"categoriaIds":[]}
                 """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
-        .andExpect(jsonPath("$.erros.length()").value(6))
+        .andExpect(jsonPath("$.erros.length()").value(5))
+        .andExpect(jsonPath("$.erros[?(@.campo == 'data')].mensagem").value("A data é obrigatória"))
         .andExpect(
             jsonPath("$.erros[?(@.campo == 'valor')].mensagem")
                 .value("O valor deve ser maior que zero"))
@@ -233,12 +238,55 @@ class LancamentoResourceTest {
             json(
                 post("/api/lancamentos"),
                 """
-                {"descricao":"%s","tipo":"DESPESA","mes":1,"ano":2026,"valor":1.234,
+                {"descricao":"%s","tipo":"DESPESA","data":"2026-01-31","valor":1.234,
                  "categoriaIds":[1]}
                 """
                     .formatted("a".repeat(101))))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.erros.length()").value(2));
+  }
+
+  @Test
+  void deveDevolver400NoCampoDataParaDiaQueNaoExiste() throws Exception {
+    mvc.perform(json(post("/api/lancamentos"), CORPO.replace("2026-08-05", "2026-02-31")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.erros[0].campo").value("data"))
+        .andExpect(
+            jsonPath("$.erros[0].mensagem")
+                .value("Data inválida. Use o formato AAAA-MM-DD com um dia que exista."));
+    verifyNoInteractions(service);
+  }
+
+  @Test
+  void deveDevolver400NoCampoDataForaDoFormatoIso() throws Exception {
+    mvc.perform(json(post("/api/lancamentos"), CORPO.replace("2026-08-05", "05/08/2026")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("data"));
+  }
+
+  @Test
+  void deveResponderAuditoriaComHoraEDataDeExclusao() throws Exception {
+    OffsetDateTime excluido = OffsetDateTime.of(2026, 8, 3, 9, 30, 15, 0, ZoneOffset.UTC);
+    LancamentoResumo deletado =
+        new LancamentoResumo(
+            1L,
+            "Cinema",
+            TipoLancamento.DESPESA,
+            LocalDate.of(2026, 8, 2),
+            new BigDecimal("45.90"),
+            StatusLancamento.DELETADO,
+            List.of(),
+            OffsetDateTime.of(2026, 8, 2, 20, 0, 0, 0, ZoneOffset.UTC),
+            excluido,
+            excluido);
+    when(service.buscar(USUARIO, 1L)).thenReturn(deletado);
+
+    mvc.perform(autenticado(get("/api/lancamentos/1")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.data").value("2026-08-02"))
+        .andExpect(jsonPath("$.dataAtualizacao").value("2026-08-03T09:30:15Z"))
+        .andExpect(jsonPath("$.dataExclusao").value("2026-08-03T09:30:15Z"));
   }
 
   @Test

@@ -165,8 +165,7 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
   private static void preencher(Lancamento lancamento, NovoLancamento dados) {
     lancamento.setDescricao(dados.descricao());
     lancamento.setTipo(dados.tipo());
-    lancamento.setMes(dados.mes());
-    lancamento.setAno(dados.ano());
+    lancamento.setData(dados.data());
     lancamento.setValor(dados.valor());
     lancamento.definirCategorias(dados.categoriaIds());
   }

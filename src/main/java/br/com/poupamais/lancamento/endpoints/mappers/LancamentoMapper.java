@@ -18,8 +18,7 @@ import org.springframework.stereotype.Component;
 public class LancamentoMapper {
 
   public NovoLancamento paraNovo(LancamentoRequest r) {
-    return new NovoLancamento(
-        r.descricao(), r.tipo(), r.mes(), r.ano(), r.valor(), r.categoriaIds());
+    return new NovoLancamento(r.descricao(), r.tipo(), r.data(), r.valor(), r.categoriaIds());
   }
 
   public FiltroLancamento paraFiltro(LancamentoFiltroParams p) {
@@ -32,15 +31,15 @@ public class LancamentoMapper {
         l.id(),
         l.descricao(),
         l.tipo(),
-        l.mes(),
-        l.ano(),
+        l.data(),
         l.valor(),
         l.status(),
         l.categorias().stream()
             .map(c -> new CategoriaDoLancamentoResponse(c.id(), c.descricao()))
             .toList(),
         l.dataCadastro(),
-        l.dataAtualizacao());
+        l.dataAtualizacao(),
+        l.dataExclusao());
   }
 
   public List<LancamentoResponse> paraResponse(List<LancamentoResumo> lancamentos) {

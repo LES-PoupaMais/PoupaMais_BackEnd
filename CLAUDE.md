@@ -9,9 +9,10 @@ Este repositório é **só a API**. O front (Next.js) fica em `LES-PoupaMais/Pou
 Documentação de origem (fora do repo, na pasta do workspace `../`): `../Documentação/DVP_PoupaMais_v1.md` (requisitos, UCs, RNs),
 `../Banco de Dados/poupamais_modelo_fisico.sql` (DDL oficial), `../Gestão (Trello)/` (backlog exportado).
 
-## Estado atual (12/11/2026)
+## Estado atual (18/11/2026)
 
 - **Fonte da verdade:** este `CLAUDE.md`. Os `.md` do DVP em `../Documentação/md/` são uma versão anterior; se divergirem, vale este arquivo.
+- **18/11/2026:** RN001 revista (lançamento com data completa; auditoria com hora). Ver entrega 15 do "Plano de entregas".
 - **Escopo atual do backend: concluído.** Não há deploy: a apresentação e a entrega mostram o sistema **rodando localmente**
   (`docker compose up -d --build`; ver "Demonstração local" no README). Próximo passo do projeto: o front (design novo + telas).
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
@@ -50,7 +51,7 @@ Pacote raiz: `br.com.poupamais`. Cada pacote direto abaixo da raiz é um módulo
 | `usuario`   | Cadastro (RF009), login (RF010), perfil e foto (RF013), troca e recuperação de senha (RF012, RF014), LGPD: consentimento, exportação e exclusão de conta (RF015–RF017) | shared, categoria (categorias padrão), lancamento (exportar dados), notificacao |
 | `notificacao` | Envio de e-mail (RNF020): `EmailFacade` + implementação SMTP              | shared                         |
 | `categoria` | CRUD, inativar/reativar categorias (RF011, RN002)                          | shared                         |
-| `lancamento`| CRUD, filtros, status ATIVO/INATIVO (RF001–RF005, RF008, RN001, RN004–RN006) | shared, categoria              |
+| `lancamento`| CRUD com data completa, filtros por mês/ano, status ATIVO/INATIVO/lixeira (RF001–RF005, RF008, RN001, RN004–RN006) | shared, categoria              |
 | `dashboard` | Totalizadores, gráficos, ranking, mensagem (RF006, RN003, RN008–RN010)     | shared, lancamento, categoria  |
 | `arquivo`   | Importação CSV (RF003, RN007) e exportação CSV/XLSX (RF007) + template     | shared, lancamento, categoria  |
 
@@ -101,29 +102,41 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.publico.enums` (enums):
 
 - `enum TipoLancamento { RECEITA, DESPESA }` e `enum StatusLancamento { ATIVO, INATIVO, DELETADO }` (com `podeIrPara(novo)`).
-- `record LancamentoResumo(Long id, String descricao, TipoLancamento tipo, int mes, int ano, BigDecimal valor, StatusLancamento status,
-  List<CategoriaResumo> categorias, LocalDate dataCadastro, LocalDate dataAtualizacao)` — `categorias` ordenadas por **id crescente**
-  (a primeira é a "primeira categoria" da RN009).
+- `record LancamentoResumo(Long id, String descricao, TipoLancamento tipo, LocalDate data, BigDecimal valor, StatusLancamento status,
+  List<CategoriaResumo> categorias, OffsetDateTime dataCadastro, OffsetDateTime dataAtualizacao, OffsetDateTime dataExclusao)` —
+  `data` = data do lançamento (RN001); auditoria com hora, em UTC; `dataExclusao` só preenchida enquanto DELETADO.
+  `categorias` ordenadas por **id crescente** (a primeira é a "primeira categoria" da RN009).
 - `record FiltroLancamento(String descricao, Integer mes, Integer ano, TipoLancamento tipo, StatusLancamento status, Long categoriaId)` —
-  mesma semântica dos parâmetros do `GET /api/lancamentos` (sem `status` = ATIVO + INATIVO; nunca DELETADO sem pedir).
-- `record NovoLancamento(String descricao, TipoLancamento tipo, Integer mes, Integer ano, BigDecimal valor, List<Long> categoriaIds)`.
+  mesma semântica dos parâmetros do `GET /api/lancamentos` (sem `status` = ATIVO + INATIVO; nunca DELETADO sem pedir). O filtro
+  continua por **mês/ano** e vira intervalo de datas sobre `data` (ver "Decisões do módulo `lancamento`").
+- `record NovoLancamento(String descricao, TipoLancamento tipo, LocalDate data, BigDecimal valor, List<Long> categoriaIds)`.
 - `interface LancamentoFacade`:
   - `LancamentoResumo criar(Long idUsuario, NovoLancamento novo)` — mesma validação do cadastro manual (`LancamentoValidator`, RN001 +
     `validarAtivasDoUsuario`); erro → `RegraNegocioException`/`RecursoNaoEncontradoException` com mensagem pronta (a importação usa como "motivo").
     `@Transactional` próprio: cada chamada é uma transação (RN007).
   - `List<LancamentoResumo> listar(Long idUsuario, FiltroLancamento filtro)` — mesmas Specifications e ordenação da listagem (exportação, RN013).
-  - `List<LancamentoResumo> listarAtivos(Long idUsuario, Collection<Periodo> periodos)` — só ATIVO dos meses pedidos (dashboard, RN003/RN008).
+  - `List<LancamentoResumo> listarAtivos(Long idUsuario, Collection<Periodo> periodos)` — só ATIVO dos meses pedidos (dashboard, RN003/RN008):
+    um único intervalo, do dia 1 do mês mais antigo ao último dia do mais recente (o dashboard pede meses seguidos).
   - `List<LancamentoResumo> listarTodos(Long idUsuario)` — todos os status (exportação de dados LGPD, RF016).
 
 ### Decisões do módulo `lancamento` (tomadas na implementação)
 
 - `FiltroLancamento.vazio()` = sem filtros. `listar` com `categoriaId` que não é do usuário → `404` "Categoria não encontrada" (API e facade).
-- `listarAtivos` com lista de períodos vazia/nula → lista vazia (não consulta). Todas as listagens usam a ordenação ano/mês/id desc.
+- `listarAtivos` com lista de períodos vazia/nula → lista vazia (não consulta). Todas as listagens usam a ordenação **`data` desc, `id` desc**
+  (`LancamentoRepository.ORDENACAO`).
+- **Data completa (RN001 revista em 18/11/2026):** o lançamento tem `data` (`LocalDate`) no lugar de `mes`/`ano`. As listagens, a
+  exportação e o dashboard **continuam filtrando por mês/ano** (`LancamentoSpecifications.doPeriodo(mes, ano)`): com os dois, intervalo
+  `Periodo.inicio()`…`Periodo.fim()` (dia 1 ao último dia do mês); só o ano, 01/01…31/12; só o mês, aquele mês de qualquer ano
+  (`extract(month)`); mês fora de 1–12 ou ano fora de 2000–2100 → lista vazia (como antes). O dashboard agrupa por `Periodo.de(data)`.
+- **Auditoria com hora:** `dataCadastro` (`@PrePersist`), `dataAtualizacao` (toda edição/troca de status) e `dataExclusao` são
+  `OffsetDateTime` em UTC, truncados em segundos. `dataExclusao` é gravada ao ir para DELETADO e volta a `null` ao restaurar
+  (`Lancamento.alterarStatus`).
 - `LancamentoValidator.validar(NovoLancamento)` devolve os dados **normalizados**: descrição com `strip()`, valor `setScale(2, HALF_UP)`
   (arredondado ≤ 0 → 422; máximo `99999999999999.99`, limite do `numeric(16,2)`), `categoriaIds` sem nulos e sem repetidos (ordem preservada).
   Mensagens (422): "A descrição é obrigatória", "A descrição deve ter no máximo 100 caracteres", "O tipo é obrigatório (RECEITA ou DESPESA)",
-  "O mês deve estar entre 1 e 12", "O ano deve estar entre 2000 e 2100", "O valor é obrigatório", "O valor deve ser maior que zero",
-  "O valor excede o máximo permitido", "Informe pelo menos uma categoria". Na API o DTO já barra antes com `400` (`@Digits(14,2)` no valor).
+  "A data é obrigatória", "A data deve estar entre 01/01/2000 e 31/12/2100", "O valor é obrigatório", "O valor deve ser maior que zero",
+  "O valor excede o máximo permitido", "Informe pelo menos uma categoria". Na API o DTO já barra antes com `400` (`@Digits(14,2)` no valor,
+  `@NotNull` na data); a faixa da data é conferida no validator (`422`).
 - `StatusLancamento.podeIrPara(mesmo)` = `false`. Mas o `PATCH /status` com o status que o lançamento **já tem** (ATIVO/INATIVO) é
   idempotente: `200` sem mexer em `dataAtualizacao`. `PATCH` com `DELETADO` → `422` "Informe o status ATIVO ou INATIVO".
   Mensagens: "Lançamento excluído não pode ser editado. Restaure-o antes.", "O lançamento já está excluído",
@@ -142,6 +155,7 @@ Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.
   `MensagemSaldoFactory` (RN010). Sem `model/` e sem `publico/`.
   Por ser só leitura e agregação, o service devolve direto o `DashboardResponse` (sem mapper).
 - **Uma** chamada a `LancamentoFacade.listarAtivos(idUsuario, periodo.ultimos(4))` por requisição; o resto é calculado em memória.
+  Os lançamentos são agrupados pelo mês da data (`Periodo.de(l.data())`).
 - `mes`/`ano` opcionais (o que faltar vem de `Periodo.atual()`, fuso de Brasília); fora de 1–12 / 2000–2100 ou não numérico → `400`
   "Dados inválidos" com `erros[{campo, mensagem}]` ("O mês deve estar entre 1 e 12", "O ano deve estar entre 2000 e 2100").
 - `taxaGasto` = despesas × 100 / receitas com 2 casas (`HALF_UP`); a classificação usa a taxa **já arredondada** (70,004 → 70,00 → dentro).
@@ -160,10 +174,10 @@ Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.
 | **Facade** | `CategoriaFacade`, `LancamentoFacade`, `EmailFacade` em `publico/` | É a fronteira do módulo: esconde o interior, que pode mudar sem quebrar os outros. |
 | **DTO + Mapper** | `endpoints/dto` (records) + `endpoints/mappers/XxxMapper` (`@Component`, mapeamento manual) | Nunca expor entidade JPA; o contrato da API fica estável. |
 | **Repository** | Spring Data `JpaRepository` em `model/repositories/` | Acesso a dados padronizado, sempre filtrando pelo dono (RN005). |
-| **Specification** | `LancamentoSpecifications` (descrição, mês, ano, tipo, status, categoria) | Filtros combináveis do RF005 **reaproveitados pela exportação** ("exporta o que está filtrado"). |
+| **Specification** | `LancamentoSpecifications` (descrição, mês/ano como intervalo de datas, tipo, status, categoria) | Filtros combináveis do RF005 **reaproveitados pela exportação** ("exporta o que está filtrado"). |
 | **Strategy + Factory** | `arquivo.exportacao`: `ExportadorLancamentos` (interface) → `ExportadorCsv`, `ExportadorXlsx`; `ExportadorFactory` recebe `List<ExportadorLancamentos>` e escolhe pelo `formato` | Adicionar PDF amanhã = 1 classe nova, sem `if/else` espalhado. |
 | **Validator** | `LancamentoValidator` | RN001 em **um só lugar**, usado pelo cadastro manual **e** pela importação CSV. |
-| **Value Object** | `shared.domain.Periodo(mes, ano)` com `anterior()`, `ultimos(4)` e `nomeMes()` | RN008 (4 meses atravessando a virada do ano) sem conta de data espalhada. |
+| **Value Object** | `shared.domain.Periodo(mes, ano)` com `anterior()`, `ultimos(4)`, `nomeMes()`, `inicio()`/`fim()` e `de(LocalDate)` | RN008 (4 meses atravessando a virada do ano) e o intervalo de datas do filtro de mês sem conta de data espalhada. |
 | **Enum com comportamento** | `dashboard.service.ClassificacaoTaxa.de(BigDecimal taxa)` | RN010 (70% / 100%) num só lugar, testável. |
 | **Máquina de estados simples** | `StatusLancamento.podeIrPara(novo)` + `Lancamento.alterarStatus(novo)` | RN006: transições ATIVO/INATIVO/DELETADO validadas num lugar só. |
 | **Chain of Responsibility** | `JwtAuthenticationFilter` na filter chain do Spring Security | Autenticação fora dos controllers. |
@@ -184,16 +198,20 @@ Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.
 ## Banco de dados
 
 DDL em `src/main/resources/db/migration` (Flyway): é a fonte da verdade; o Hibernate não cria tabelas.
-O `V1__schema_inicial.sql` veio do DDL oficial (`../Banco de Dados/poupamais_modelo_fisico.sql`).
+O `V1__schema_inicial.sql` veio do DDL oficial (`../Banco de Dados/poupamais_modelo_fisico.sql`). O `V2__lancamento_data_completa.sql`
+(18/11/2026) troca `mes`/`ano` por `data date` (lançamentos antigos ficam no dia 1 do mês: `make_date(ano, mes, 1)`), troca o índice
+`lancamento_dashboard_idx` para `(id_usuario, data, status)`, passa a auditoria do lançamento para `timestamptz` (valores antigos =
+meia-noite de Brasília) e cria `data_exclusao timestamptz`.
 
 - Mudança de banco = **nova migração** `V<n>__descricao.sql`. **Nunca editar migração já aplicada**; só adicionar.
 - `spring.flyway`: schema `poupamais` criado e gerenciado pelo Flyway, histórico em `poupamais.flyway_schema_history`.
 - `spring.jpa.hibernate.ddl-auto=validate` e `spring.jpa.properties.hibernate.default_schema=poupamais`.
 - Tabelas: `usuario`, `categoria`, `lancamento`, `categorias_lancamentos`.
-- Tipos: `valor numeric(16,2)` → **`BigDecimal`**; `data_cadastro`/`data_atualizacao` são `date` → `LocalDate`;
+- Tipos: `valor numeric(16,2)` → **`BigDecimal`**; `lancamento.data` é `date` → `LocalDate`; `lancamento.data_cadastro`/`data_atualizacao`/
+  `data_exclusao` são `timestamptz` → `OffsetDateTime` (`usuario`/`categoria.data_cadastro` continuam `date` → `LocalDate`);
   `tipo`/`status` são `varchar` → `@Enumerated(EnumType.STRING)`.
 - Constraints que o banco já garante: e-mail único; descrição de categoria única por usuário **case-insensitive**
-  (`lower(descricao)`); `mes` 1–12; `ano` 2000–2100; `valor > 0`; tipo/status nos valores dos enums.
+  (`lower(descricao)`); `data` entre 2000-01-01 e 2100-12-31; `valor > 0`; tipo/status nos valores dos enums.
   Mesmo assim **valide na aplicação antes**, para devolver mensagem amigável (RNF007) em vez de erro 500.
 - **Atenção à tabela associativa:** `categorias_lancamentos` tem `id_usuario NOT NULL` replicado (FKs compostas
   `(id_categoria,id_usuario)` e `(id_lancamento,id_usuario)`). Um `@ManyToMany` + `@JoinTable` simples **não** preenche
@@ -211,18 +229,18 @@ O `V1__schema_inicial.sql` veio do DDL oficial (`../Banco de Dados/poupamais_mod
 
 | RN    | Módulo | Regra |
 | ----- | ------ | ----- |
-| RN001 | lancamento | Obrigatórios: descrição (≤100), tipo, mês, ano, valor > 0 e **≥ 1 categoria**. |
+| RN001 | lancamento | Obrigatórios: descrição (≤100), tipo, **data** (dia que exista, entre 01/01/2000 e 31/12/2100), valor > 0 e **≥ 1 categoria**. Revista em 18/11/2026: antes eram mês (1–12) e ano (2000–2100). Listagens e dashboard continuam filtrados por mês/ano. |
 | RN002 | categoria / arquivo | Lançamento pode ter N categorias. Categoria pertence a um usuário; descrição única por usuário sem diferenciar maiúsc./minúsc. No CSV, categoria inexistente em linha válida é **criada automaticamente** (`CategoriaFacade.buscarOuCriar`). Categoria vinculada a lançamento (inclusive DELETADO) **não pode ser excluída**, só inativada. Categoria inativa não pode ser usada em lançamento novo. **No cadastro do usuário**, criar as categorias padrão: Alimentação, Educação, Freelance, Investimentos, Lazer, Moradia, Outros, Salário, Saúde, Transporte, Vestuário. |
-| RN003 | dashboard | Só lançamentos **ATIVOS** do mês/ano (padrão = mês atual). Saldo = Receitas − Despesas. Taxa = Despesas / Receitas × 100; se Receitas = 0 → `null` (não disponível). |
+| RN003 | dashboard | Só lançamentos **ATIVOS** cuja data cai no mês/ano (padrão = mês atual). Saldo = Receitas − Despesas. Taxa = Despesas / Receitas × 100; se Receitas = 0 → `null` (não disponível). |
 | RN004 | lancamento / dashboard | Três status. **ATIVO**: entra no dashboard. **INATIVO**: aparece na listagem, mas não entra no dashboard. **DELETADO**: exclusão lógica (lixeira); não aparece na listagem padrão nem no dashboard, só com o filtro `status=DELETADO`. Nada é apagado fisicamente. |
 | RN005 | todos | Usuário só vê/edita/inativa/exporta/exclui **o que é dele**. |
 | RN006 | lancamento | ATIVO/INATIVO: editáveis em qualquer mês e alternam livremente. DELETADO: **não pode ser editado nem alternado**; só **restaurar**, que devolve como **INATIVO**. Transições válidas: ATIVO⇄INATIVO, ATIVO/INATIVO→DELETADO, DELETADO→INATIVO. O "Desfazer" da exclusão é feito no front (a chamada só é enviada quando o toast fecha). |
 | RN007 | arquivo | Importação parcial: salva as linhas válidas, ignora inválidas/em branco e devolve quais falharam e por quê. Nunca recusa o arquivo inteiro. |
-| RN008 | dashboard | "Receitas vs Despesas" e "Saldo Mensal": 4 meses terminando no selecionado (`Periodo.ultimos(4)`). "Maiores Despesas": top 5 despesas ativas do mês, com categorias. |
+| RN008 | dashboard | "Receitas vs Despesas" e "Saldo Mensal": 4 meses terminando no selecionado (`Periodo.ultimos(4)`), agrupando pelo mês da data. "Maiores Despesas": top 5 despesas ativas do mês, com categorias. |
 | RN009 | dashboard | "Despesas por Categoria": só despesas ativas do mês. N categorias → valor dividido igualmente; **centavos de diferença vão para a primeira** (= menor `id_categoria`). Soma das fatias = total de despesas. |
 | RN010 | dashboard | Taxa ≤ 70% "Dentro do limite"; > 70% e ≤ 100% "Atenção"; > 100% "Acima do limite". Mensagem descritiva: "Saldo positivo de R$ X em Agosto" / "As despesas superaram as receitas em R$ X em Agosto". **Nunca recomendar investimento** (RNI003). |
 | RN011 | usuario | Cadastro: nome, e-mail válido e único, senha ≥ 6 com confirmação (a confirmação é validada no front). Senha só com hash BCrypt. A sessão expira (`JWT_EXPIRACAO_MIN`, padrão 480 = 8h). |
-| RN012 | arquivo | Layout do CSV: ver "Formato CSV". **Máx. 2 MB e 5.000 linhas de dados**; acima disso, ou sem o cabeçalho, recusa o arquivo inteiro (422) antes de processar. Template para download. |
+| RN012 | arquivo | Layout do CSV: ver "Formato CSV" (desde 18/11/2026 com a coluna `data` em `dd/mm/aaaa` no lugar de `mes`/`ano`). **Máx. 2 MB e 5.000 linhas de dados**; acima disso, ou sem o cabeçalho, recusa o arquivo inteiro (422) antes de processar. Template para download. |
 | RN013 | arquivo | Exportação CSV/XLSX respeita os filtros; DELETADO só sai com `status=DELETADO`; sem resultados → 422. |
 | RN014 | usuario | Recuperação de senha: link por e-mail, token aleatório (32 bytes) guardado como hash, **30 min**, uso único; novo pedido invalida os anteriores; resposta **sempre igual** (não revela se o e-mail existe); ao redefinir, grava `senha_alterada_em` (derruba todas as sessões). |
 | RN015 | usuario | Perfil: nome obrigatório (≤150); **e-mail não editável**; foto JPG/PNG/WEBP ≤ 2 MB (validar pelo conteúdo, não só pela extensão); sem foto, o front mostra a inicial. Troca de senha: exige a senha atual, a nova segue a RN011 e é ≠ da atual; grava `senha_alterada_em` e **devolve um token novo** (a sessão atual continua, as outras caem). |
@@ -300,10 +318,11 @@ Rotas públicas: `cadastro`, `login`, `recuperar-senha`, `redefinir-senha`.
 Exportação de dados do titular (`GET /api/usuarios/me/dados`, decidido em `feat/exportacao-dados`):
 - `200` com `Content-Type: application/json` e `Content-Disposition: attachment; filename="meus-dados-poupamais.json"`; sem token → `401`.
 - camelCase; datas `LocalDate` como `"AAAA-MM-DD"` e instantes ISO-8601 em UTC (`"2026-11-12T18:00:00Z"`); `geradoEm` truncado em segundos.
+  Nos lançamentos, `data` é `"AAAA-MM-DD"` e `dataCadastro`/`dataAtualizacao`/`dataExclusao` são instantes.
 - `perfil` traz **só** `id, nome, email, dataCadastro, aceiteTermosEm, possuiFoto`: nunca senha/hash, `senhaAlteradaEm` nem tokens.
   **A foto não vai no JSON** (só `possuiFoto`): imagem em Base64 incharia o arquivo e ela já pode ser baixada em `GET /api/usuarios/me/foto`.
 - `categorias`: **todas** do usuário (ativas e inativas), ativas primeiro e depois alfabética (`CategoriaFacade.listarTodas`).
-- `lancamentos`: **todos** os status (ATIVO, INATIVO e DELETADO), ordem ano/mês/id desc (`LancamentoFacade.listarTodos`), mesmo
+- `lancamentos`: **todos** os status (ATIVO, INATIVO e DELETADO), ordem data/id desc (`LancamentoFacade.listarTodos`), mesmo
   formato da response de lançamento (`categorias: [{id, descricao}]`). Usuário sem lançamentos → `[]` (não é erro, ao contrário do RN013).
 - Só leitura e agregação: o `ExportacaoDadosServiceImpl` devolve direto o `DadosTitularResponse` (sem mapper), como o dashboard.
 
@@ -324,13 +343,13 @@ Exportação de dados do titular (`GET /api/usuarios/me/dados`, decidido em `fea
       "id": 9,
       "descricao": "Cinema",
       "tipo": "DESPESA",
-      "mes": 8,
-      "ano": 2026,
+      "data": "2026-08-02",
       "valor": 45.9,
       "status": "DELETADO",
       "categorias": [{ "id": 3, "descricao": "Lazer" }],
-      "dataCadastro": "2026-08-02",
-      "dataAtualizacao": "2026-08-03"
+      "dataCadastro": "2026-08-02T20:00:00Z",
+      "dataAtualizacao": "2026-08-03T09:30:00Z",
+      "dataExclusao": "2026-08-03T09:30:00Z"
     }
   ]
 }
@@ -355,18 +374,22 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
 
 **Lançamentos** (módulo `lancamento`, RF001–RF005, RF008 / UC001, UC002, UC004, UC010)
 
-- `GET /api/lancamentos?descricao=&mes=&ano=&tipo=&status=&categoriaId=` → lista ordenada por **ano desc, mês desc, id desc**.
+- `GET /api/lancamentos?descricao=&mes=&ano=&tipo=&status=&categoriaId=` → lista ordenada por **data desc, id desc**.
+  `mes`/`ano` filtram pelo mês da `data` (do dia 1 ao último dia).
   `descricao` = contém, sem diferenciar maiúsculas (`lower(...) like`). Sem paginação. Categoria/lançamento de outro usuário → `404`.
   Sem `status` = ATIVO + INATIVO (**nunca** DELETADO). `status=ATIVO|INATIVO|DELETADO` filtra só aquele (DELETADO = "Lixeira").
 - `GET /api/lancamentos/{id}`
-- `POST /api/lancamentos` `{descricao, tipo, mes, ano, valor, categoriaIds: [..]}` → `201`
+- `POST /api/lancamentos` `{descricao, tipo, data, valor, categoriaIds: [..]}` → `201`. `data` em ISO `"AAAA-MM-DD"` (o front mostra
+  dd/mm/aaaa). Data ausente → `400` "A data é obrigatória"; dia que não existe ou formato errado (`"2026-02-31"`, `"05/11/2026"`) → `400`
+  "Dados inválidos" com `erros[{campo: "data", mensagem: "Data inválida. Use o formato AAAA-MM-DD com um dia que exista."}]`;
+  fora de 01/01/2000–31/12/2100 → `422` "A data deve estar entre 01/01/2000 e 31/12/2100".
 - `PUT /api/lancamentos/{id}` (mesmo body) → atualiza e seta `dataAtualizacao` · se DELETADO → `422`
 - `PATCH /api/lancamentos/{id}/status` `{status: "ATIVO"|"INATIVO"}` → atualiza `dataAtualizacao` · se DELETADO → `422`
-- `DELETE /api/lancamentos/{id}` → `204`; **não apaga**: muda o status para DELETADO
-- `POST /api/lancamentos/{id}/restaurar` → `200` (lançamento com status INATIVO) · se não estiver DELETADO → `422`
+- `DELETE /api/lancamentos/{id}` → `204`; **não apaga**: muda o status para DELETADO e grava `dataExclusao`
+- `POST /api/lancamentos/{id}/restaurar` → `200` (lançamento com status INATIVO e `dataExclusao: null`) · se não estiver DELETADO → `422`
 - `POST`/`PUT`/`PATCH`/`restaurar` devolvem o lançamento no formato abaixo. `categoriaIds` repetidos são aceitos e gravados uma vez;
   categoria inativa → `422`; inexistente ou de outro usuário → `404` (vem do `validarAtivasDoUsuario`).
-- `DELETE` de lançamento já DELETADO → `422`. Toda alteração (PUT, status, delete, restaurar) seta `dataAtualizacao = hoje`.
+- `DELETE` de lançamento já DELETADO → `422`. Toda alteração (PUT, status, delete, restaurar) seta `dataAtualizacao = agora` (com hora).
 
 As transições ficam num método da entidade (`Lancamento.alterarStatus(novo)`, que lança `RegraNegocioException`),
 não espalhadas pelo service.
@@ -378,13 +401,13 @@ Response de lançamento:
   "id": 1,
   "descricao": "Salário mensal",
   "tipo": "RECEITA",
-  "mes": 8,
-  "ano": 2026,
+  "data": "2026-08-05",
   "valor": 8500.0,
   "status": "ATIVO",
   "categorias": [{ "id": 3, "descricao": "Salário" }],
-  "dataCadastro": "2026-08-01",
-  "dataAtualizacao": null
+  "dataCadastro": "2026-08-05T13:05:00Z",
+  "dataAtualizacao": null,
+  "dataExclusao": null
 }
 ```
 
@@ -398,7 +421,7 @@ Response de lançamento:
 
 **Dashboard** (módulo `dashboard`, RF006 / UC005)
 
-- `GET /api/dashboard?mes=8&ano=2026` (padrão: mês/ano atual). `classificacaoTaxa` pode ser `DENTRO_DO_LIMITE`, `ATENCAO`, `ACIMA_DO_LIMITE` ou `null`:
+- `GET /api/dashboard?mes=8&ano=2026` (padrão: mês/ano atual; entram os lançamentos cuja `data` cai no mês). `classificacaoTaxa` pode ser `DENTRO_DO_LIMITE`, `ATENCAO`, `ACIMA_DO_LIMITE` ou `null`:
 
 ```json
 {
@@ -439,14 +462,15 @@ Rota inexistente (com token válido) → 404 `"Recurso não encontrado"`; métod
 ## Formato CSV (RN012 no DVP)
 
 - Separador `;` (abre direto no Excel pt-BR), UTF-8 (aceitar BOM), 1ª linha = cabeçalho.
-- Cabeçalho: `descricao;tipo;mes;ano;valor;categorias`
-- `tipo`: `RECEITA`/`DESPESA` (sem diferenciar maiúsc./minúsc.); `valor`: `1234,56` ou `1234.56`;
+- Cabeçalho: `descricao;tipo;data;valor;categorias` (desde 18/11/2026; antes `descricao;tipo;mes;ano;valor;categorias`)
+- `data`: `dd/mm/aaaa` **estrito** (dia e mês com 2 dígitos, ano com 4, dia que exista no mês, entre 01/01/2000 e 31/12/2100);
+  `tipo`: `RECEITA`/`DESPESA` (sem diferenciar maiúsc./minúsc.); `valor`: `1234,56` ou `1234.56`;
   `categorias`: várias separadas por `|` (ex.: `Alimentação|Lazer`).
 - Exemplo:
   ```
-  descricao;tipo;mes;ano;valor;categorias
-  Salário mensal;RECEITA;8;2026;8500,00;Salário
-  iFood — pedidos do mês;DESPESA;8;2026;420,00;Alimentação|Lazer
+  descricao;tipo;data;valor;categorias
+  Salário mensal;RECEITA;05/08/2026;8500,00;Salário
+  iFood — pedidos do mês;DESPESA;12/08/2026;420,00;Alimentação|Lazer
   ```
 - Limites: **2 MB** (`spring.servlet.multipart.max-file-size=2MB`) e **5.000 linhas de dados**. Excedeu ou sem cabeçalho → 422 com o arquivo inteiro recusado.
 - Cada linha passa pelo mesmo `LancamentoValidator` (RN001). O método de importação **não** é `@Transactional`:
@@ -454,7 +478,7 @@ Rota inexistente (com token válido) → 404 `"Recurso não encontrado"`; métod
 - A exportação usa o **mesmo layout** (+ coluna `status`), para que um arquivo exportado possa ser reimportado.
 
 Decisões da implementação (`feat/arquivo`):
-- **Cabeçalho**: localizado pelo nome (trim, sem diferenciar maiúsc.), em qualquer ordem; as 6 colunas são obrigatórias e colunas
+- **Cabeçalho**: localizado pelo nome (trim, sem diferenciar maiúsc.), em qualquer ordem; as 5 colunas são obrigatórias e colunas
   extras (ex.: `status` do arquivo exportado) são ignoradas. Linhas em branco antes do cabeçalho são puladas.
 - **Recusa do arquivo inteiro (422, nada é gravado)**: vazio/sem campo `arquivo`, > 2 MB, não é texto UTF-8 válido (ou tem byte nulo),
   cabeçalho ausente/incompleto, nenhuma linha de dados, > 5.000 linhas de dados não vazias.
@@ -463,7 +487,9 @@ Decisões da implementação (`feat/arquivo`):
 - Linha com colunas faltando/sobrando ou aspas quebradas → falha da linha (campos com `;` vão entre aspas duplas; uma linha = um registro).
 - **Valor**: aceita `1234,56`, `1234.56`, `1.234,56`, `1,234.56`, `R$ 10,5`. Com vírgula **e** ponto, o último é o decimal e o outro é milhar;
   com só um deles, ele é o decimal, salvo se repetido (`1.234.567` = milhar). Máximo 2 casas (`1,234` e `10,555` são falha). Negativo/zero → falha.
-- `tipo`/`mes`/`ano`/`descricao`/categorias são checados **antes** de criar qualquer categoria (checagem prévia da RN001 no `ConversorLinha`);
+- **Data**: vazia → "A data é obrigatória (dd/mm/aaaa)"; dia que não existe ou fora do formato → "Data inválida (31/02/2026). Use dd/mm/aaaa
+  com um dia que exista." (mostra o valor digitado); fora da faixa → "A data deve estar entre 01/01/2000 e 31/12/2100".
+- `tipo`/`data`/`descricao`/categorias são checados **antes** de criar qualquer categoria (checagem prévia da RN001 no `ConversorLinha`);
   a validação definitiva continua no `LancamentoValidator` via `LancamentoFacade.criar`. Categorias repetidas na linha (ignorando maiúsc.) contam uma vez.
 - **Categoria inativa** citada → falha da linha "A categoria "X" está inativa e não pode ser usada", sem criar as outras categorias novas da linha.
   Categoria nova (RN002) só é criada (`buscarOuCriar`) depois que a linha passou em tudo isso; `categoriasCriadas` lista as descrições criadas.
@@ -472,8 +498,8 @@ Decisões da implementação (`feat/arquivo`):
   a linha (ou o commit falhar), a categoria criada para ela é desfeita junto: nenhuma categoria órfã, e `categoriasCriadas` (e o cache
   da importação) só recebem categorias de linhas **gravadas**.
 - Erro inesperado numa linha → falha com "Não foi possível salvar esta linha. Tente novamente." (só o tipo da exceção vai para o log).
-- **Exportação**: CSV em UTF-8 **com BOM**, `;`, CRLF, valor `8500,00`; XLSX (aba "Lançamentos", cabeçalho em negrito, mês/ano/valor numéricos,
-  valor com formato `0.00`). Nome `lancamentos-AAAA-MM-DD.<formato>` (data de São Paulo). `formato` ausente ou diferente de `csv`/`xlsx` → 400
+- **Exportação**: CSV em UTF-8 **com BOM**, `;`, CRLF, data `dd/mm/aaaa`, valor `8500,00`; XLSX (aba "Lançamentos", cabeçalho em negrito,
+  `data` como **célula de data** com formato `dd/mm/yyyy`, valor numérico com formato `0.00`). Nome `lancamentos-AAAA-MM-DD.<formato>` (data de São Paulo). `formato` ausente ou diferente de `csv`/`xlsx` → 400
   "Formato inválido. Use: csv ou xlsx". Content types: `text/csv;charset=UTF-8` e
   `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Template baixa como `template.csv` (`text/csv;charset=UTF-8`).
 
@@ -485,7 +511,8 @@ Decisões da implementação (`feat/arquivo`):
   regra de negócio no service, lançando as exceções de `shared.exception`.
 - `@Transactional` nos métodos de escrita do service; `@Transactional(readOnly = true)` nas consultas.
 - Dinheiro com `BigDecimal` e `RoundingMode` sempre explícito.
-- Datas de auditoria: `dataCadastro` em `@PrePersist`; `dataAtualizacao` em todo update e troca de status.
+- Datas de auditoria: `dataCadastro` em `@PrePersist`; `dataAtualizacao` em todo update e troca de status; no lançamento, com hora
+  (`OffsetDateTime` UTC) e `dataExclusao` ao ir para a lixeira.
 - Toda funcionalidade nasce **com testes** (ver "Testes"). Sem teste, não está pronta.
 - **Todo endpoint novo ou alterado entra por padrão nas coleções do Postman e do Bruno** (`doc/api/`), no mesmo PR: acrescente a
   requisição (corpo de exemplo, status esperado e, se criar recurso, o script que guarda o id) na lista `REQUISICOES` de
@@ -559,6 +586,7 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | # | Entrega | Situação | Inclui (além do contrato) |
 | --- | --- | --- | --- |
 | 9 | Deploy | ❌ fora do escopo (12/11/2026) | apresentação e entrega rodando localmente com `docker compose up -d --build` |
+| 15 | Lançamento com data completa + auditoria com hora (Fase A: RN001 revista em 18/11/2026) | ✅ na branch `feat/data-completa-lancamento`, aguardando PR | `V2__lancamento_data_completa.sql`; `data` ISO no contrato; `dataCadastro`/`dataAtualizacao`/`dataExclusao` com hora; CSV `descricao;tipo;data;valor;categorias` (dd/mm/aaaa); XLSX com célula de data; LGPD; coleções. **Depois, em cima desta branch:** paginação do `GET /lancamentos`, `quantidadeLancamentos` em categorias e `pesoMaioresDespesas` no dashboard. Front: espelhar o contrato no `CLAUDE.md` do front |
 | 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ na branch `chore/fechamento-backend`, aguardando PR | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.

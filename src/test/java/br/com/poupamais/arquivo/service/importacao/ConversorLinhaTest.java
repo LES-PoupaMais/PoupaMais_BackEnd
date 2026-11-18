@@ -4,23 +4,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
+import java.time.LocalDate;
 import java.util.HashMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class ConversorLinhaTest {
 
   private final ConversorLinha conversor = new ConversorLinha();
 
   private static Map<String, String> campos(
-      String descricao, String tipo, String mes, String ano, String valor, String categorias) {
+      String descricao, String tipo, String data, String valor, String categorias) {
     Map<String, String> campos = new HashMap<>();
     campos.put("descricao", descricao);
     campos.put("tipo", tipo);
-    campos.put("mes", mes);
-    campos.put("ano", ano);
+    campos.put("data", data);
     campos.put("valor", valor);
     campos.put("categorias", categorias);
     return campos;
@@ -31,12 +32,11 @@ class ConversorLinhaTest {
     DadosLinha dados =
         conversor.converter(
             campos(
-                " iFood ", "despesa", "8", "2026", "420,00", "Alimentação| Lazer |alimentação||"));
+                " iFood ", "despesa", "15/08/2026", "420,00", "Alimentação| Lazer |alimentação||"));
 
     assertThat(dados.descricao()).isEqualTo("iFood");
     assertThat(dados.tipo()).isEqualTo(TipoLancamento.DESPESA);
-    assertThat(dados.mes()).isEqualTo(8);
-    assertThat(dados.ano()).isEqualTo(2026);
+    assertThat(dados.data()).isEqualTo(LocalDate.of(2026, 8, 15));
     assertThat(dados.valor()).isEqualByComparingTo("420.00");
     assertThat(dados.categorias()).containsExactly("Alimentação", "Lazer");
   }
@@ -80,21 +80,68 @@ class ConversorLinhaTest {
   @Test
   void deveRecusarCamposInvalidosComMotivo() {
     assertMotivo(
-        campos("", "RECEITA", "8", "2026", "1", "A"), ConversorLinha.MSG_DESCRICAO_OBRIGATORIA);
+        campos("", "RECEITA", "15/08/2026", "1", "A"), ConversorLinha.MSG_DESCRICAO_OBRIGATORIA);
     assertMotivo(
-        campos(null, "RECEITA", "8", "2026", "1", "A"), ConversorLinha.MSG_DESCRICAO_OBRIGATORIA);
+        campos(null, "RECEITA", "15/08/2026", "1", "A"), ConversorLinha.MSG_DESCRICAO_OBRIGATORIA);
     assertMotivo(
-        campos("x".repeat(101), "RECEITA", "8", "2026", "1", "A"),
+        campos("x".repeat(101), "RECEITA", "15/08/2026", "1", "A"),
         ConversorLinha.MSG_DESCRICAO_LONGA);
-    assertMotivo(campos("a", "TRANSFERENCIA", "8", "2026", "1", "A"), ConversorLinha.MSG_TIPO);
-    assertMotivo(campos("a", "RECEITA", "13", "2026", "1", "A"), ConversorLinha.MSG_MES);
-    assertMotivo(campos("a", "RECEITA", "ago", "2026", "1", "A"), ConversorLinha.MSG_MES);
-    assertMotivo(campos("a", "RECEITA", "8", "1999", "1", "A"), ConversorLinha.MSG_ANO);
+    assertMotivo(campos("a", "TRANSFERENCIA", "15/08/2026", "1", "A"), ConversorLinha.MSG_TIPO);
+    assertMotivo(campos("a", "RECEITA", " ", "1", "A"), "A data é obrigatória (dd/mm/aaaa)");
     assertMotivo(
-        campos("a", "RECEITA", "8", "2026", "1", " | "), ConversorLinha.MSG_CATEGORIA_OBRIGATORIA);
+        campos("a", "RECEITA", "31/12/1999", "1", "A"),
+        "A data deve estar entre 01/01/2000 e 31/12/2100");
     assertMotivo(
-        campos("a", "RECEITA", "8", "2026", "1", "c".repeat(256)),
+        campos("a", "RECEITA", "01/01/2101", "1", "A"),
+        "A data deve estar entre 01/01/2000 e 31/12/2100");
+    assertMotivo(
+        campos("a", "RECEITA", "15/08/2026", "1", " | "), ConversorLinha.MSG_CATEGORIA_OBRIGATORIA);
+    assertMotivo(
+        campos("a", "RECEITA", "15/08/2026", "1", "c".repeat(256)),
         ConversorLinha.MSG_CATEGORIA_LONGA);
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "01/01/2000, 2000-01-01",
+    "31/12/2100, 2100-12-31",
+    "29/02/2028, 2028-02-29",
+    "31/01/2026, 2026-01-31",
+    "' 05/11/2026 ', 2026-11-05"
+  })
+  void deveConverterDataDdMmAaaa(String bruto, LocalDate esperada) {
+    assertThat(ConversorLinha.data(bruto)).isEqualTo(esperada);
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "31/02/2026",
+        "29/02/2026",
+        "31/04/2026",
+        "31/06/2026",
+        "31/09/2026",
+        "31/11/2026",
+        "00/01/2026",
+        "32/01/2026",
+        "15/13/2026",
+        "5/8/2026",
+        "15/08/26",
+        "2026-08-15",
+        "15-08-2026",
+        "agosto"
+      })
+  void deveRecusarDataQueNaoExisteOuForaDoFormato(String bruto) {
+    assertThatThrownBy(() -> ConversorLinha.data(bruto))
+        .isInstanceOf(LinhaInvalidaException.class)
+        .hasMessage("Data inválida (" + bruto + "). Use dd/mm/aaaa com um dia que exista.");
+  }
+
+  @Test
+  void mensagemDaDataInvalidaMostraOValorDigitado() {
+    assertMotivo(
+        campos("a", "DESPESA", "31/02/2026", "1", "A"),
+        "Data inválida (31/02/2026). Use dd/mm/aaaa com um dia que exista.");
   }
 
   private void assertMotivo(Map<String, String> campos, String motivo) {

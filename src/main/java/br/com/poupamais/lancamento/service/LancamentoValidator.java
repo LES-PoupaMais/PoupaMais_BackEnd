@@ -5,6 +5,7 @@ import br.com.poupamais.shared.domain.Periodo;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
@@ -27,9 +28,15 @@ public class LancamentoValidator {
   static final String MSG_DESCRICAO_OBRIGATORIA = "A descrição é obrigatória";
   static final String MSG_DESCRICAO_LONGA = "A descrição deve ter no máximo 100 caracteres";
   static final String MSG_TIPO_OBRIGATORIO = "O tipo é obrigatório (RECEITA ou DESPESA)";
-  static final String MSG_MES_INVALIDO = "O mês deve estar entre 1 e 12";
-  static final String MSG_ANO_INVALIDO =
-      "O ano deve estar entre " + Periodo.ANO_MINIMO + " e " + Periodo.ANO_MAXIMO;
+
+  /** Faixa aceita para a data do lançamento (mesma do CHECK do banco). */
+  public static final LocalDate DATA_MINIMA = LocalDate.of(Periodo.ANO_MINIMO, 1, 1);
+
+  public static final LocalDate DATA_MAXIMA = LocalDate.of(Periodo.ANO_MAXIMO, 12, 31);
+
+  static final String MSG_DATA_OBRIGATORIA = "A data é obrigatória";
+  static final String MSG_DATA_FORA_DA_FAIXA =
+      "A data deve estar entre 01/01/" + Periodo.ANO_MINIMO + " e 31/12/" + Periodo.ANO_MAXIMO;
   static final String MSG_VALOR_OBRIGATORIO = "O valor é obrigatório";
   static final String MSG_VALOR_POSITIVO = "O valor deve ser maior que zero";
   static final String MSG_VALOR_GRANDE = "O valor excede o máximo permitido";
@@ -43,18 +50,22 @@ public class LancamentoValidator {
     if (dados.tipo() == null) {
       throw new RegraNegocioException(MSG_TIPO_OBRIGATORIO);
     }
-    if (dados.mes() == null || dados.mes() < 1 || dados.mes() > 12) {
-      throw new RegraNegocioException(MSG_MES_INVALIDO);
-    }
-    if (dados.ano() == null
-        || dados.ano() < Periodo.ANO_MINIMO
-        || dados.ano() > Periodo.ANO_MAXIMO) {
-      throw new RegraNegocioException(MSG_ANO_INVALIDO);
-    }
+    validarData(dados.data());
     BigDecimal valor = validarValor(dados.valor());
     List<Long> categoriaIds = validarCategorias(dados.categoriaIds());
-    return new NovoLancamento(
-        descricao, dados.tipo(), dados.mes(), dados.ano(), valor, categoriaIds);
+    return new NovoLancamento(descricao, dados.tipo(), dados.data(), valor, categoriaIds);
+  }
+
+  /**
+   * Data obrigatória, entre 01/01/2000 e 31/12/2100 (o dia já é válido: é um {@link LocalDate}).
+   */
+  private static void validarData(LocalDate data) {
+    if (data == null) {
+      throw new RegraNegocioException(MSG_DATA_OBRIGATORIA);
+    }
+    if (data.isBefore(DATA_MINIMA) || data.isAfter(DATA_MAXIMA)) {
+      throw new RegraNegocioException(MSG_DATA_FORA_DA_FAIXA);
+    }
   }
 
   private static String validarDescricao(String descricao) {

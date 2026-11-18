@@ -19,6 +19,8 @@ import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.domain.Periodo;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,13 +52,23 @@ class DashboardServiceImplTest {
         id,
         tipo + "-" + id,
         tipo,
-        mes,
-        ano,
+        // dias variados (1, 15, último) para provar que o agrupamento é pelo mês da data
+        diaDoMes(id, mes, ano),
         new BigDecimal(valor),
         StatusLancamento.ATIVO,
         List.of(cats),
         null,
+        null,
         null);
+  }
+
+  private static LocalDate diaDoMes(long id, int mes, int ano) {
+    YearMonth anoMes = YearMonth.of(ano, mes);
+    return switch ((int) (id % 3)) {
+      case 0 -> anoMes.atDay(1);
+      case 1 -> anoMes.atDay(15);
+      default -> anoMes.atEndOfMonth();
+    };
   }
 
   private DashboardResponse consultar(Periodo periodo, List<LancamentoResumo> retorno) {

@@ -55,11 +55,11 @@ class ExportacaoServiceTest {
                     1L,
                     "Pão",
                     TipoLancamento.DESPESA,
-                    8,
-                    2026,
+                    java.time.LocalDate.of(2026, 8, 15),
                     BigDecimal.TEN,
                     StatusLancamento.DELETADO,
                     List.of(new CategoriaResumo(1L, "Mercado", true)),
+                    null,
                     null,
                     null)));
 
@@ -68,7 +68,7 @@ class ExportacaoServiceTest {
     assertThat(arquivo.nome()).isEqualTo("lancamentos-2026-11-12.csv");
     assertThat(arquivo.contentType()).startsWith("text/csv");
     assertThat(new String(arquivo.conteudo(), StandardCharsets.UTF_8))
-        .contains("Pão;DESPESA;8;2026;10,00;Mercado;DELETADO");
+        .contains("Pão;DESPESA;15/08/2026;10,00;Mercado;DELETADO");
   }
 
   @Test

@@ -41,12 +41,12 @@ class ArquivoIntegracaoTest {
   }
 
   private static final String CSV =
-      "﻿descricao;tipo;mes;ano;valor;categorias\n"
-          + "Salário mensal;RECEITA;8;2026;8500,00;Salário\n"
-          + "iFood — pedidos do mês;despesa;8;2026;420.00;Alimentação|Lazer\n"
+      "﻿descricao;tipo;data;valor;categorias\n"
+          + "Salário mensal;RECEITA;01/08/2026;8500,00;Salário\n"
+          + "iFood — pedidos do mês;despesa;31/08/2026;420.00;Alimentação|Lazer\n"
           + "\n"
-          + "Linha ruim;DESPESA;13;2026;10,00;Categoria Fantasma\n"
-          + "Cinema;DESPESA;9;2026;1.050,50;lazer\n";
+          + "Linha ruim;DESPESA;31/02/2026;10,00;Categoria Fantasma\n"
+          + "Cinema;DESPESA;01/09/2026;1.050,50;lazer\n";
 
   @Autowired private MockMvc mvc;
   @Autowired private JwtService jwtService;
@@ -93,7 +93,9 @@ class ArquivoIntegracaoTest {
         .andExpect(jsonPath("$.importados").value(3))
         .andExpect(jsonPath("$.falhas.length()").value(1))
         .andExpect(jsonPath("$.falhas[0].linha").value(5))
-        .andExpect(jsonPath("$.falhas[0].motivo").value("O mês deve ser um número entre 1 e 12"))
+        .andExpect(
+            jsonPath("$.falhas[0].motivo")
+                .value("Data inválida (31/02/2026). Use dd/mm/aaaa com um dia que exista."))
         .andExpect(jsonPath("$.categoriasCriadas.length()").value(0));
 
     assertThat(lancamentos()).isEqualTo(3);
@@ -106,10 +108,12 @@ class ArquivoIntegracaoTest {
         .isZero();
     Map<String, Object> cinema =
         jdbc.queryForMap(
-            "select valor, tipo from poupamais.lancamento where id_usuario = ? and descricao = ?",
+            "select valor, tipo, data from poupamais.lancamento"
+                + " where id_usuario = ? and descricao = ?",
             usuario,
             "Cinema");
     assertThat((java.math.BigDecimal) cinema.get("valor")).isEqualByComparingTo("1050.50");
+    assertThat(cinema.get("data").toString()).isEqualTo("2026-09-01");
     List<String> catsIfood =
         jdbc.queryForList(
             "select c.descricao from poupamais.categoria c"
@@ -137,7 +141,8 @@ class ArquivoIntegracaoTest {
             .getResponse()
             .getContentAsByteArray();
     String texto = new String(exportado, StandardCharsets.UTF_8);
-    assertThat(texto).contains("Salário mensal;RECEITA;8;2026;8500,00;Salário;ATIVO");
+    assertThat(texto).contains("Salário mensal;RECEITA;01/08/2026;8500,00;Salário;ATIVO");
+    assertThat(texto).contains(";31/08/2026;420,00;");
     assertThat(texto).doesNotContain("Cinema");
 
     mvc.perform(
@@ -155,9 +160,9 @@ class ArquivoIntegracaoTest {
     Long antiga = categorias.buscarOuCriar(usuario, "Antiga").id();
     jdbc.update("update poupamais.categoria set ativa = false where id = ?", antiga);
     String csv =
-        "descricao;tipo;mes;ano;valor;categorias\n"
-            + "Ração;DESPESA;8;2026;80;Pets\n"
-            + "Velha;DESPESA;8;2026;10;antiga|Viagem\n";
+        "descricao;tipo;data;valor;categorias\n"
+            + "Ração;DESPESA;15/08/2026;80;Pets\n"
+            + "Velha;DESPESA;15/08/2026;10;antiga|Viagem\n";
 
     mvc.perform(
             multipart("/api/lancamentos/importar")
@@ -178,7 +183,8 @@ class ArquivoIntegracaoTest {
   void deveRecusarArquivoSemCabecalhoSemGravarNada() throws Exception {
     mvc.perform(
             multipart("/api/lancamentos/importar")
-                .file(arquivo("Pão;DESPESA;8;2026;10;Mercado\n".getBytes(StandardCharsets.UTF_8)))
+                .file(
+                    arquivo("Pão;DESPESA;15/08/2026;10;Mercado\n".getBytes(StandardCharsets.UTF_8)))
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent());
 

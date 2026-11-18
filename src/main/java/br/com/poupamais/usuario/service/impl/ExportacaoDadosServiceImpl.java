@@ -76,12 +76,12 @@ public class ExportacaoDadosServiceImpl implements ExportacaoDadosService {
         l.id(),
         l.descricao(),
         l.tipo(),
-        l.mes(),
-        l.ano(),
+        l.data(),
         l.valor(),
         l.status(),
         l.categorias().stream().map(c -> new CategoriaDoLancamento(c.id(), c.descricao())).toList(),
         l.dataCadastro(),
-        l.dataAtualizacao());
+        l.dataAtualizacao(),
+        l.dataExclusao());
   }
 }

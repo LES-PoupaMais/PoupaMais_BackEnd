@@ -14,8 +14,7 @@ body:json {
   {
     "descricao": "",
     "tipo": "DESPESA",
-    "mes": 13,
-    "ano": {{ano}},
+    "data": "2026-02-31",
     "valor": 0,
     "categoriaIds": []
   }
@@ -28,5 +27,5 @@ tests {
 }
 
 docs {
-  Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`.
+  Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`. `2026-02-31` não existe: **400** com erro no campo `data`.
 }

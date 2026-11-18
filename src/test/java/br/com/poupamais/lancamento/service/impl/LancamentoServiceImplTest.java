@@ -2,6 +2,7 @@ package br.com.poupamais.lancamento.service.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -28,8 +29,12 @@ import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import org.assertj.core.data.TemporalUnitOffset;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +48,8 @@ import org.springframework.data.jpa.domain.Specification;
 class LancamentoServiceImplTest {
 
   private static final Long USUARIO = 1L;
+  private static final LocalDate DATA = LocalDate.of(2026, 8, 31);
+  private static final TemporalUnitOffset PROXIMO = within(5, ChronoUnit.SECONDS);
 
   @Mock private LancamentoRepository repository;
   @Mock private CategoriaFacade categoriaFacade;
@@ -61,7 +68,7 @@ class LancamentoServiceImplTest {
 
   private static NovoLancamento novo(List<Long> categorias) {
     return new NovoLancamento(
-        " Aluguel ", TipoLancamento.DESPESA, 8, 2026, new BigDecimal("2100"), categorias);
+        " Aluguel ", TipoLancamento.DESPESA, DATA, new BigDecimal("2100"), categorias);
   }
 
   private static Lancamento existente(StatusLancamento status, Long... categorias) {
@@ -71,11 +78,10 @@ class LancamentoServiceImplTest {
             .idUsuario(USUARIO)
             .descricao("Antigo")
             .tipo(TipoLancamento.RECEITA)
-            .mes(1)
-            .ano(2025)
+            .data(LocalDate.of(2025, 1, 31))
             .valor(new BigDecimal("1.00"))
             .status(status)
-            .dataCadastro(LocalDate.of(2025, 1, 1))
+            .dataCadastro(OffsetDateTime.of(2025, 1, 1, 12, 0, 0, 0, ZoneOffset.UTC))
             .build();
     l.definirCategorias(List.of(categorias));
     return l;
@@ -151,7 +157,7 @@ class LancamentoServiceImplTest {
   @Test
   void deveValidarRn001AntesDeConsultarCategorias() {
     NovoLancamento semValor =
-        new NovoLancamento("x", TipoLancamento.DESPESA, 8, 2026, null, List.of(1L));
+        new NovoLancamento("x", TipoLancamento.DESPESA, DATA, null, List.of(1L));
 
     assertThatThrownBy(() -> service.criar(USUARIO, semValor))
         .isInstanceOf(RegraNegocioException.class)
@@ -204,10 +210,9 @@ class LancamentoServiceImplTest {
 
     assertThat(editado.descricao()).isEqualTo("Aluguel");
     assertThat(editado.tipo()).isEqualTo(TipoLancamento.DESPESA);
-    assertThat(editado.mes()).isEqualTo(8);
-    assertThat(editado.ano()).isEqualTo(2026);
+    assertThat(editado.data()).isEqualTo(DATA);
     assertThat(editado.status()).isEqualTo(StatusLancamento.INATIVO);
-    assertThat(editado.dataAtualizacao()).isEqualTo(LocalDate.now());
+    assertThat(editado.dataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
     assertThat(editado.categorias()).extracting(CategoriaResumo::id).containsExactly(2L, 3L);
     // A categoria 2 já estava no lançamento: só a nova (3) precisa estar ativa
     verify(categoriaFacade).validarAtivasDoUsuario(USUARIO, List.of(3L));
@@ -234,7 +239,8 @@ class LancamentoServiceImplTest {
     LancamentoResumo resumo = service.alterarStatus(USUARIO, 10L, StatusLancamento.INATIVO);
 
     assertThat(resumo.status()).isEqualTo(StatusLancamento.INATIVO);
-    assertThat(resumo.dataAtualizacao()).isEqualTo(LocalDate.now());
+    assertThat(resumo.dataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+    assertThat(resumo.dataExclusao()).isNull();
     verify(repository).save(l);
   }
 
@@ -280,7 +286,8 @@ class LancamentoServiceImplTest {
     service.excluir(USUARIO, 10L);
 
     assertThat(l.getStatus()).isEqualTo(StatusLancamento.DELETADO);
-    assertThat(l.getDataAtualizacao()).isEqualTo(LocalDate.now());
+    assertThat(l.getDataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+    assertThat(l.getDataExclusao()).isEqualTo(l.getDataAtualizacao());
     verify(repository).save(l);
     verify(repository, never()).delete(any(Lancamento.class));
   }
@@ -297,6 +304,7 @@ class LancamentoServiceImplTest {
   @Test
   void deveRestaurarComoInativo() {
     Lancamento l = existente(StatusLancamento.DELETADO, 1L);
+    l.setDataExclusao(OffsetDateTime.of(2025, 2, 1, 12, 0, 0, 0, ZoneOffset.UTC));
     encontra(l);
     when(repository.save(l)).thenReturn(l);
     categoriasExistem();
@@ -304,7 +312,8 @@ class LancamentoServiceImplTest {
     LancamentoResumo resumo = service.restaurar(USUARIO, 10L);
 
     assertThat(resumo.status()).isEqualTo(StatusLancamento.INATIVO);
-    assertThat(resumo.dataAtualizacao()).isEqualTo(LocalDate.now());
+    assertThat(resumo.dataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+    assertThat(resumo.dataExclusao()).isNull();
   }
 
   @Test
