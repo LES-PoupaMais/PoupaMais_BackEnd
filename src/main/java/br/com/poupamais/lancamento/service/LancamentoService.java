@@ -5,11 +5,19 @@ import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
 import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import java.util.List;
+import org.springframework.data.domain.Page;
 
 /** Regras de lançamento usadas pela API (RF001–RF005, RF008, RN001, RN004–RN006). */
 public interface LancamentoService {
 
   List<LancamentoResumo> listar(Long idUsuario, FiltroLancamento filtro);
+
+  /**
+   * Uma página da listagem, com os mesmos filtros e ordenação (data e id decrescentes) de {@link
+   * #listar}. {@code pagina} começa em 0; os limites de {@code tamanho} são validados no resource.
+   */
+  Page<LancamentoResumo> listarPagina(
+      Long idUsuario, FiltroLancamento filtro, int pagina, int tamanho);
 
   LancamentoResumo buscar(Long idUsuario, Long id);
 

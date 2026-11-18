@@ -4,10 +4,12 @@ import br.com.poupamais.lancamento.endpoints.dto.CategoriaDoLancamentoResponse;
 import br.com.poupamais.lancamento.endpoints.dto.LancamentoFiltroParams;
 import br.com.poupamais.lancamento.endpoints.dto.LancamentoRequest;
 import br.com.poupamais.lancamento.endpoints.dto.LancamentoResponse;
+import br.com.poupamais.lancamento.endpoints.dto.PaginaResponse;
 import br.com.poupamais.lancamento.publico.dto.FiltroLancamento;
 import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
 import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
 import java.util.List;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 
 /**
@@ -44,5 +46,15 @@ public class LancamentoMapper {
 
   public List<LancamentoResponse> paraResponse(List<LancamentoResumo> lancamentos) {
     return lancamentos.stream().map(this::paraResponse).toList();
+  }
+
+  /** Página do Spring → corpo próprio da API ({@code Page} não sai na resposta). */
+  public PaginaResponse<LancamentoResponse> paraResponse(Page<LancamentoResumo> pagina) {
+    return new PaginaResponse<>(
+        paraResponse(pagina.getContent()),
+        pagina.getNumber(),
+        pagina.getSize(),
+        pagina.getTotalElements(),
+        pagina.getTotalPages());
   }
 }

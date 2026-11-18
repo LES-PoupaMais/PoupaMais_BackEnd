@@ -1,6 +1,7 @@
 package br.com.poupamais.lancamento.endpoints;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -38,6 +39,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -95,41 +99,115 @@ class LancamentoResourceTest {
     return req.header(HttpHeaders.AUTHORIZATION, bearer);
   }
 
+  private static Page<LancamentoResumo> pagina(
+      List<LancamentoResumo> itens, int pagina, int tamanho, long total) {
+    return new PageImpl<>(itens, PageRequest.of(pagina, tamanho), total);
+  }
+
   @Test
-  void deveListarNoFormatoDoContratoRepassandoFiltros() throws Exception {
+  void deveListarNoFormatoDoContratoRepassandoFiltrosEPaginacao() throws Exception {
     FiltroLancamento filtro =
         new FiltroLancamento("sal", 8, 2026, TipoLancamento.RECEITA, StatusLancamento.ATIVO, 3L);
-    when(service.listar(USUARIO, filtro)).thenReturn(List.of(resumo(StatusLancamento.ATIVO)));
+    when(service.listarPagina(USUARIO, filtro, 2, 5))
+        .thenReturn(pagina(List.of(resumo(StatusLancamento.ATIVO)), 2, 5, 11));
 
     mvc.perform(
             autenticado(
                 get(
                     "/api/lancamentos?descricao=sal&mes=8&ano=2026&tipo=RECEITA&status=ATIVO"
-                        + "&categoriaId=3")))
+                        + "&categoriaId=3&pagina=2&tamanho=5")))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].id").value(1))
-        .andExpect(jsonPath("$[0].descricao").value("Salário mensal"))
-        .andExpect(jsonPath("$[0].tipo").value("RECEITA"))
-        .andExpect(jsonPath("$[0].data").value("2026-08-05"))
-        .andExpect(jsonPath("$[0].mes").doesNotExist())
-        .andExpect(jsonPath("$[0].ano").doesNotExist())
-        .andExpect(jsonPath("$[0].valor").value(8500.0))
-        .andExpect(jsonPath("$[0].status").value("ATIVO"))
-        .andExpect(jsonPath("$[0].categorias[0].id").value(3))
-        .andExpect(jsonPath("$[0].categorias[0].descricao").value("Salário"))
-        .andExpect(jsonPath("$[0].categorias[0].ativa").doesNotExist())
-        .andExpect(jsonPath("$[0].dataCadastro").value("2026-08-01T13:05:00Z"))
-        .andExpect(jsonPath("$[0].dataAtualizacao").doesNotExist())
-        .andExpect(jsonPath("$[0].dataExclusao").doesNotExist());
+        .andExpect(jsonPath("$.pagina").value(2))
+        .andExpect(jsonPath("$.tamanho").value(5))
+        .andExpect(jsonPath("$.total").value(11))
+        .andExpect(jsonPath("$.totalPaginas").value(3))
+        .andExpect(jsonPath("$.content").doesNotExist())
+        .andExpect(jsonPath("$.pageable").doesNotExist())
+        .andExpect(jsonPath("$.itens.length()").value(1))
+        .andExpect(jsonPath("$.itens[0].id").value(1))
+        .andExpect(jsonPath("$.itens[0].descricao").value("Salário mensal"))
+        .andExpect(jsonPath("$.itens[0].tipo").value("RECEITA"))
+        .andExpect(jsonPath("$.itens[0].data").value("2026-08-05"))
+        .andExpect(jsonPath("$.itens[0].mes").doesNotExist())
+        .andExpect(jsonPath("$.itens[0].ano").doesNotExist())
+        .andExpect(jsonPath("$.itens[0].valor").value(8500.0))
+        .andExpect(jsonPath("$.itens[0].status").value("ATIVO"))
+        .andExpect(jsonPath("$.itens[0].categorias[0].id").value(3))
+        .andExpect(jsonPath("$.itens[0].categorias[0].descricao").value("Salário"))
+        .andExpect(jsonPath("$.itens[0].categorias[0].ativa").doesNotExist())
+        .andExpect(jsonPath("$.itens[0].dataCadastro").value("2026-08-01T13:05:00Z"))
+        .andExpect(jsonPath("$.itens[0].dataAtualizacao").doesNotExist())
+        .andExpect(jsonPath("$.itens[0].dataExclusao").doesNotExist());
   }
 
   @Test
-  void deveListarSemFiltros() throws Exception {
-    when(service.listar(USUARIO, FiltroLancamento.vazio())).thenReturn(List.of());
+  void deveListarSemParametrosNaPrimeiraPaginaCom12() throws Exception {
+    when(service.listarPagina(USUARIO, FiltroLancamento.vazio(), 0, 12))
+        .thenReturn(pagina(List.of(), 0, 12, 0));
 
     mvc.perform(autenticado(get("/api/lancamentos")))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.length()").value(0));
+        .andExpect(jsonPath("$.itens.length()").value(0))
+        .andExpect(jsonPath("$.pagina").value(0))
+        .andExpect(jsonPath("$.tamanho").value(12))
+        .andExpect(jsonPath("$.total").value(0))
+        .andExpect(jsonPath("$.totalPaginas").value(0));
+  }
+
+  @Test
+  void deveDevolverPaginaAlemDoFimVaziaComTotal() throws Exception {
+    when(service.listarPagina(USUARIO, FiltroLancamento.vazio(), 7, 12))
+        .thenReturn(pagina(List.of(), 7, 12, 30));
+
+    mvc.perform(autenticado(get("/api/lancamentos?pagina=7")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.itens.length()").value(0))
+        .andExpect(jsonPath("$.pagina").value(7))
+        .andExpect(jsonPath("$.total").value(30))
+        .andExpect(jsonPath("$.totalPaginas").value(3));
+  }
+
+  @Test
+  void deveAceitarTamanhoNosLimites1E100() throws Exception {
+    when(service.listarPagina(eq(USUARIO), any(), eq(0), anyInt()))
+        .thenAnswer(i -> pagina(List.of(), 0, i.getArgument(3), 0));
+
+    mvc.perform(autenticado(get("/api/lancamentos?tamanho=1"))).andExpect(status().isOk());
+    mvc.perform(autenticado(get("/api/lancamentos?tamanho=100")))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.tamanho").value(100));
+  }
+
+  @Test
+  void deveRecusarTamanhoAcimaDoMaximoCom400() throws Exception {
+    mvc.perform(autenticado(get("/api/lancamentos?tamanho=101")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.erros[0].campo").value("tamanho"))
+        .andExpect(
+            jsonPath("$.erros[0].mensagem").value("O tamanho da página deve ser de 1 a 100"));
+    verifyNoInteractions(service);
+  }
+
+  @Test
+  void deveRecusarTamanhoZeroOuNegativoCom400() throws Exception {
+    for (String tamanho : List.of("0", "-5")) {
+      mvc.perform(autenticado(get("/api/lancamentos?tamanho=" + tamanho)))
+          .andExpect(status().isBadRequest())
+          .andExpect(jsonPath("$.erros[0].campo").value("tamanho"))
+          .andExpect(
+              jsonPath("$.erros[0].mensagem").value("O tamanho da página deve ser de 1 a 100"));
+    }
+    verifyNoInteractions(service);
+  }
+
+  @Test
+  void deveRecusarPaginaNegativaCom400() throws Exception {
+    mvc.perform(autenticado(get("/api/lancamentos?pagina=-1")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("pagina"))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("A página deve ser maior ou igual a 0"));
+    verifyNoInteractions(service);
   }
 
   @Test
@@ -141,7 +219,7 @@ class LancamentoResourceTest {
 
   @Test
   void deveDevolver404QuandoCategoriaDoFiltroNaoEDoUsuario() throws Exception {
-    when(service.listar(eq(USUARIO), any()))
+    when(service.listarPagina(eq(USUARIO), any(), anyInt(), anyInt()))
         .thenThrow(new RecursoNaoEncontradoException("Categoria não encontrada"));
 
     mvc.perform(autenticado(get("/api/lancamentos?categoriaId=99")))
