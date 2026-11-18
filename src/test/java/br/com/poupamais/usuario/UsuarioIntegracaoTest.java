@@ -381,8 +381,8 @@ class UsuarioIntegracaoTest {
             "select min(id) from poupamais.categoria where id_usuario = ?", Long.class, id);
     Long lancamento =
         jdbc.queryForObject(
-            "insert into poupamais.lancamento (id_usuario, descricao, mes, ano, valor, tipo)"
-                + " values (?, 'Mercado', 8, 2026, 10.00, 'DESPESA') returning id",
+            "insert into poupamais.lancamento (id_usuario, descricao, data, valor, tipo)"
+                + " values (?, 'Mercado', date '2026-08-15', 10.00, 'DESPESA') returning id",
             Long.class,
             id);
     jdbc.update(

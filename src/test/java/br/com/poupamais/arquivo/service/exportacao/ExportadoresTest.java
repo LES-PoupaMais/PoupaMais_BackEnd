@@ -14,8 +14,11 @@ import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import org.apache.poi.ss.usermodel.CellType;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -29,25 +32,25 @@ class ExportadoresTest {
               1L,
               "Feira; sábado",
               TipoLancamento.DESPESA,
-              8,
-              2026,
+              LocalDate.of(2026, 8, 15),
               new BigDecimal("1234.5"),
               StatusLancamento.INATIVO,
               List.of(
                   new CategoriaResumo(1L, "Alimentação", true),
                   new CategoriaResumo(2L, "Lazer", true)),
-              LocalDate.of(2026, 8, 1),
+              OffsetDateTime.of(2026, 8, 1, 10, 0, 0, 0, ZoneOffset.UTC),
+              null,
               null),
           new LancamentoResumo(
               2L,
               "Salário",
               TipoLancamento.RECEITA,
-              7,
-              2026,
+              LocalDate.of(2026, 7, 15),
               new BigDecimal("8500.00"),
               StatusLancamento.ATIVO,
               List.of(new CategoriaResumo(3L, "Salário", true)),
-              LocalDate.of(2026, 7, 1),
+              OffsetDateTime.of(2026, 7, 1, 10, 0, 0, 0, ZoneOffset.UTC),
+              null,
               null));
 
   @Test
@@ -55,9 +58,9 @@ class ExportadoresTest {
     String texto = new String(new ExportadorCsv().exportar(DADOS), StandardCharsets.UTF_8);
 
     assertThat(texto)
-        .startsWith("﻿descricao;tipo;mes;ano;valor;categorias;status\r\n")
-        .contains("\"Feira; sábado\";DESPESA;8;2026;1234,50;Alimentação|Lazer;INATIVO\r\n")
-        .contains("Salário;RECEITA;7;2026;8500,00;Salário;ATIVO");
+        .startsWith("﻿descricao;tipo;data;valor;categorias;status\r\n")
+        .contains("\"Feira; sábado\";DESPESA;15/08/2026;1234,50;Alimentação|Lazer;INATIVO\r\n")
+        .contains("Salário;RECEITA;15/07/2026;8500,00;Salário;ATIVO");
   }
 
   @Test
@@ -70,27 +73,33 @@ class ExportadoresTest {
     assertThat(linhas).hasSize(2).allMatch(l -> l.erro() == null);
     var primeira = conversor.converter(linhas.getFirst().campos());
     assertThat(primeira.descricao()).isEqualTo("Feira; sábado");
+    assertThat(primeira.data()).isEqualTo(LocalDate.of(2026, 8, 15));
     assertThat(primeira.valor()).isEqualByComparingTo("1234.50");
     assertThat(primeira.categorias()).containsExactly("Alimentação", "Lazer");
   }
 
   @Test
-  void xlsxDeveTerCabecalhoEValoresNumericosComDuasCasas() throws Exception {
+  void xlsxDeveTerCabecalhoDataComoCelulaDeDataEValorComDuasCasas() throws Exception {
     byte[] bytes = new ExportadorXlsx().exportar(DADOS);
 
     try (XSSFWorkbook planilha = new XSSFWorkbook(new ByteArrayInputStream(bytes))) {
       Sheet aba = planilha.getSheet(ExportadorXlsx.ABA);
       Row cabecalho = aba.getRow(0);
       assertThat(cabecalho.getCell(0).getStringCellValue()).isEqualTo("descricao");
-      assertThat(cabecalho.getCell(6).getStringCellValue()).isEqualTo("status");
+      assertThat(cabecalho.getCell(2).getStringCellValue()).isEqualTo("data");
+      assertThat(cabecalho.getCell(5).getStringCellValue()).isEqualTo("status");
       Row linha = aba.getRow(1);
       assertThat(linha.getCell(0).getStringCellValue()).isEqualTo("Feira; sábado");
-      assertThat(linha.getCell(2).getNumericCellValue()).isEqualTo(8);
-      assertThat(linha.getCell(4).getCellType()).isEqualTo(CellType.NUMERIC);
-      assertThat(linha.getCell(4).getNumericCellValue()).isEqualTo(1234.5);
-      assertThat(linha.getCell(4).getCellStyle().getDataFormatString()).isEqualTo("0.00");
-      assertThat(linha.getCell(5).getStringCellValue()).isEqualTo("Alimentação|Lazer");
-      assertThat(linha.getCell(6).getStringCellValue()).isEqualTo("INATIVO");
+      assertThat(linha.getCell(2).getCellType()).isEqualTo(CellType.NUMERIC);
+      assertThat(DateUtil.isCellDateFormatted(linha.getCell(2))).isTrue();
+      assertThat(linha.getCell(2).getLocalDateTimeCellValue().toLocalDate())
+          .isEqualTo(LocalDate.of(2026, 8, 15));
+      assertThat(linha.getCell(2).getCellStyle().getDataFormatString()).isEqualTo("dd/mm/yyyy");
+      assertThat(linha.getCell(3).getCellType()).isEqualTo(CellType.NUMERIC);
+      assertThat(linha.getCell(3).getNumericCellValue()).isEqualTo(1234.5);
+      assertThat(linha.getCell(3).getCellStyle().getDataFormatString()).isEqualTo("0.00");
+      assertThat(linha.getCell(4).getStringCellValue()).isEqualTo("Alimentação|Lazer");
+      assertThat(linha.getCell(5).getStringCellValue()).isEqualTo("INATIVO");
       assertThat(aba.getLastRowNum()).isEqualTo(2);
     }
   }

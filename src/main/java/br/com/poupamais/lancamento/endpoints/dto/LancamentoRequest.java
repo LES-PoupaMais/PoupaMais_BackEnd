@@ -2,29 +2,26 @@ package br.com.poupamais.lancamento.endpoints.dto;
 
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import jakarta.validation.constraints.Digits;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 
+/**
+ * Corpo do {@code POST}/{@code PUT} de lançamento. {@code data} em ISO ({@code "2026-11-05"}); dia
+ * inexistente ({@code "2026-02-31"}) → 400. A faixa 2000–2100 é conferida no {@code
+ * LancamentoValidator} (422).
+ */
 public record LancamentoRequest(
     @NotBlank(message = "A descrição é obrigatória")
         @Size(max = 100, message = "A descrição deve ter no máximo 100 caracteres")
         String descricao,
     @NotNull(message = "O tipo é obrigatório (RECEITA ou DESPESA)") TipoLancamento tipo,
-    @NotNull(message = "O mês é obrigatório")
-        @Min(value = 1, message = "O mês deve estar entre 1 e 12")
-        @Max(value = 12, message = "O mês deve estar entre 1 e 12")
-        Integer mes,
-    @NotNull(message = "O ano é obrigatório")
-        @Min(value = 2000, message = "O ano deve estar entre 2000 e 2100")
-        @Max(value = 2100, message = "O ano deve estar entre 2000 e 2100")
-        Integer ano,
+    @NotNull(message = "A data é obrigatória") LocalDate data,
     @NotNull(message = "O valor é obrigatório")
         @Positive(message = "O valor deve ser maior que zero")
         @Digits(

@@ -119,8 +119,8 @@ class CategoriaIntegracaoTest {
     Categoria livre = service.criar(usuarioA, "Livre");
     Long idLancamento =
         jdbc.queryForObject(
-            "insert into poupamais.lancamento (id_usuario, descricao, mes, ano, valor, tipo, status)"
-                + " values (?, 'Compra', 8, 2026, 10.00, 'DESPESA', 'DELETADO') returning id",
+            "insert into poupamais.lancamento (id_usuario, descricao, data, valor, tipo, status)"
+                + " values (?, 'Compra', date '2026-08-15', 10.00, 'DESPESA', 'DELETADO') returning id",
             Long.class,
             usuarioA);
     jdbc.update(

@@ -108,7 +108,7 @@ class ExportacaoDadosIntegracaoTest {
         json(
             post("/api/lancamentos"),
             token,
-            ("{\"descricao\":\"%s\",\"tipo\":\"DESPESA\",\"mes\":8,\"ano\":2026,"
+            ("{\"descricao\":\"%s\",\"tipo\":\"DESPESA\",\"data\":\"2026-08-05\","
                     + "\"valor\":10.50,\"categoriaIds\":%s}")
                 .formatted(descricao, ids),
             201),
@@ -176,5 +176,13 @@ class ExportacaoDadosIntegracaoTest {
                     corpo, "$.lancamentos[?(@.id == " + ativo + ")].categorias[*].descricao"))
         .containsExactly("Viagem", "Antiga");
     assertThat(corpo).doesNotContain("Lançamento da Bia");
+    assertThat((List<String>) JsonPath.read(corpo, "$.lancamentos[*].data"))
+        .containsOnly("2026-08-05");
+    List<String> exclusao =
+        JsonPath.read(corpo, "$.lancamentos[?(@.id == " + deletado + ")].dataExclusao");
+    assertThat(exclusao).singleElement().asString().endsWith("Z");
+    List<Object> semExclusao =
+        JsonPath.read(corpo, "$.lancamentos[?(@.id == " + ativo + ")].dataExclusao");
+    assertThat(semExclusao).containsExactly((Object) null);
   }
 }

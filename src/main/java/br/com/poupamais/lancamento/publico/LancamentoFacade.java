@@ -25,7 +25,7 @@ public interface LancamentoFacade {
   LancamentoResumo criar(Long idUsuario, NovoLancamento novo);
 
   /**
-   * Mesmos filtros e ordenação (ano, mês e id decrescentes) da listagem da API (RN013).
+   * Mesmos filtros e ordenação (data e id decrescentes) da listagem da API (RN013).
    *
    * @throws br.com.poupamais.shared.exception.RecursoNaoEncontradoException (404) se {@code
    *     categoriaId} não for do usuário

@@ -46,7 +46,7 @@ public class DashboardServiceImpl implements DashboardService {
     List<Periodo> periodos = periodo.ultimos(MESES_NO_GRAFICO);
     Map<Periodo, List<LancamentoResumo>> porMes =
         lancamentos.listarAtivos(idUsuario, periodos).stream()
-            .collect(Collectors.groupingBy(l -> new Periodo(l.mes(), l.ano())));
+            .collect(Collectors.groupingBy(l -> Periodo.de(l.data())));
 
     List<MesResumo> ultimosMeses =
         periodos.stream().map(p -> resumir(p, porMes.getOrDefault(p, List.of()))).toList();

@@ -1,5 +1,6 @@
 package br.com.poupamais.shared.domain;
 
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.TextStyle;
@@ -9,8 +10,10 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Competência de um lançamento (mês/ano). Concentra a aritmética de meses usada pelo dashboard
- * (RN008: os 4 meses que terminam no selecionado, atravessando a virada do ano).
+ * Mês/ano usado como filtro das listagens e do dashboard (o lançamento tem a data completa, RN001).
+ * Concentra a aritmética de meses usada pelo dashboard (RN008: os 4 meses que terminam no
+ * selecionado, atravessando a virada do ano) e o intervalo de datas do mês ({@link #inicio()} a
+ * {@link #fim()}).
  */
 public record Periodo(int mes, int ano) implements Comparable<Periodo> {
 
@@ -36,6 +39,21 @@ public record Periodo(int mes, int ano) implements Comparable<Periodo> {
 
   public static Periodo de(YearMonth anoMes) {
     return new Periodo(anoMes.getMonthValue(), anoMes.getYear());
+  }
+
+  /** Mês da data informada (ex.: 2026-08-15 → agosto/2026). */
+  public static Periodo de(LocalDate data) {
+    return de(YearMonth.from(data));
+  }
+
+  /** Primeiro dia do mês. */
+  public LocalDate inicio() {
+    return paraYearMonth().atDay(1);
+  }
+
+  /** Último dia do mês (28, 29, 30 ou 31). */
+  public LocalDate fim() {
+    return paraYearMonth().atEndOfMonth();
   }
 
   public Periodo anterior() {

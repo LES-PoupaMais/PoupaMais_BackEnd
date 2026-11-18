@@ -4,6 +4,8 @@ import br.com.poupamais.categoria.publico.CategoriaFacade;
 import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.lancamento.model.entidades.Lancamento;
 import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -48,12 +50,17 @@ public class LancamentoResumoConversor {
         l.getId(),
         l.getDescricao(),
         l.getTipo(),
-        l.getMes(),
-        l.getAno(),
+        l.getData(),
         l.getValor(),
         l.getStatus(),
         doLancamento,
-        l.getDataCadastro(),
-        l.getDataAtualizacao());
+        emUtc(l.getDataCadastro()),
+        emUtc(l.getDataAtualizacao()),
+        emUtc(l.getDataExclusao()));
+  }
+
+  /** O driver pode devolver o instante no fuso da JVM; a API responde sempre em UTC. */
+  private static OffsetDateTime emUtc(OffsetDateTime instante) {
+    return instante == null ? null : instante.withOffsetSameInstant(ZoneOffset.UTC);
   }
 }

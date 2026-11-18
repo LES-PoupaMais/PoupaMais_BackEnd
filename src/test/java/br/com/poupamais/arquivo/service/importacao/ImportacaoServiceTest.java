@@ -37,7 +37,7 @@ import org.springframework.transaction.support.TransactionOperations;
 class ImportacaoServiceTest {
 
   private static final Long USUARIO = 7L;
-  private static final String CABECALHO = "descricao;tipo;mes;ano;valor;categorias\n";
+  private static final String CABECALHO = "descricao;tipo;data;valor;categorias\n";
 
   @Mock private CategoriaFacade categorias;
   @Mock private LancamentoFacade lancamentos;
@@ -73,17 +73,17 @@ class ImportacaoServiceTest {
   void deveSalvarLinhasValidasEListarInvalidasComNumeroReal() {
     ResultadoImportacao resultado =
         importar(
-            "Salário mensal;RECEITA;8;2026;8500,00;Salário\n"
+            "Salário mensal;RECEITA;15/08/2026;8500,00;Salário\n"
                 + "\n"
-                + "Sem valor;DESPESA;8;2026;;Pets\n"
-                + "iFood;despesa;8;2026;420.00;Alimentação|Lazer\n");
+                + "Sem valor;DESPESA;15/08/2026;;Pets\n"
+                + "iFood;despesa;15/08/2026;420.00;Alimentação|Lazer\n");
 
     assertThat(resultado.totalLinhas()).isEqualTo(3);
     assertThat(resultado.importados()).isEqualTo(2);
     assertThat(resultado.falhas())
         .containsExactly(
             new ResultadoImportacao.Falha(
-                4, "Sem valor;DESPESA;8;2026;;Pets", ConversorLinha.MSG_VALOR_OBRIGATORIO));
+                4, "Sem valor;DESPESA;15/08/2026;;Pets", ConversorLinha.MSG_VALOR_OBRIGATORIO));
     assertThat(resultado.categoriasCriadas()).containsExactly("Alimentação", "Lazer");
     ArgumentCaptor<NovoLancamento> captor = ArgumentCaptor.forClass(NovoLancamento.class);
     verify(lancamentos, times(2)).criar(eq(USUARIO), captor.capture());
@@ -92,15 +92,14 @@ class ImportacaoServiceTest {
             new NovoLancamento(
                 "Salário mensal",
                 TipoLancamento.RECEITA,
-                8,
-                2026,
+                java.time.LocalDate.of(2026, 8, 15),
                 new java.math.BigDecimal("8500.00"),
                 List.of(3L)));
   }
 
   @Test
   void naoDeveCriarCategoriaEmLinhaInvalida() {
-    ResultadoImportacao resultado = importar("Pets;DESPESA;13;2026;10;Pets\n");
+    ResultadoImportacao resultado = importar("Pets;DESPESA;31/02/2026;10;Pets\n");
 
     assertThat(resultado.importados()).isZero();
     assertThat(resultado.categoriasCriadas()).isEmpty();
@@ -110,7 +109,8 @@ class ImportacaoServiceTest {
 
   @Test
   void deveReaproveitarCategoriaCriadaEmLinhaAnterior() {
-    ResultadoImportacao resultado = importar("A;DESPESA;8;2026;1;Pets\nB;DESPESA;8;2026;2;pets\n");
+    ResultadoImportacao resultado =
+        importar("A;DESPESA;15/08/2026;1;Pets\nB;DESPESA;15/08/2026;2;pets\n");
 
     assertThat(resultado.importados()).isEqualTo(2);
     assertThat(resultado.categoriasCriadas()).containsExactly("Pets");
@@ -122,7 +122,7 @@ class ImportacaoServiceTest {
     when(categorias.buscarPorDescricao(USUARIO, "Antiga"))
         .thenReturn(Optional.of(new CategoriaResumo(9L, "Antiga", false)));
 
-    ResultadoImportacao resultado = importar("A;DESPESA;8;2026;1;Nova|Antiga\n");
+    ResultadoImportacao resultado = importar("A;DESPESA;15/08/2026;1;Nova|Antiga\n");
 
     assertThat(resultado.falhas().getFirst().motivo())
         .isEqualTo("A categoria \"Antiga\" está inativa e não pode ser usada");
@@ -136,7 +136,7 @@ class ImportacaoServiceTest {
         .thenReturn(null);
 
     ResultadoImportacao resultado =
-        importar("Recusada;DESPESA;8;2026;1;Pets\nAceita;DESPESA;8;2026;2;pets|Lazer\n");
+        importar("Recusada;DESPESA;15/08/2026;1;Pets\nAceita;DESPESA;15/08/2026;2;pets|Lazer\n");
 
     assertThat(resultado.importados()).isEqualTo(1);
     assertThat(resultado.falhas())
@@ -175,7 +175,7 @@ class ImportacaoServiceTest {
         new ImportacaoService(
             new LeitorCsv(), new ConversorLinha(), categorias, lancamentos, transacao);
 
-    importar("A;DESPESA;8;2026;1;Pets\n");
+    importar("A;DESPESA;15/08/2026;1;Pets\n");
 
     assertThat(chamadasNaTransacao).containsExactly("inicio", "categoria", "lancamento", "fim");
   }
@@ -190,8 +190,8 @@ class ImportacaoServiceTest {
 
     ResultadoImportacao resultado =
         importar(
-            "A;RECEITA;8;2026;1;Salário\nB;RECEITA;8;2026;1;Salário\n"
-                + "C;RECEITA;8;2026;1;Salário\nD;RECEITA;8;2026;1;Salário\n");
+            "A;RECEITA;15/08/2026;1;Salário\nB;RECEITA;15/08/2026;1;Salário\n"
+                + "C;RECEITA;15/08/2026;1;Salário\nD;RECEITA;15/08/2026;1;Salário\n");
 
     assertThat(resultado.importados()).isEqualTo(1);
     assertThat(resultado.falhas())
@@ -211,7 +211,7 @@ class ImportacaoServiceTest {
 
   @Test
   void deveRecusarArquivoInteiroSemCabecalhoAntesDeProcessar() {
-    byte[] semCabecalho = "A;RECEITA;8;2026;1;Salário\n".getBytes(StandardCharsets.UTF_8);
+    byte[] semCabecalho = "A;RECEITA;15/08/2026;1;Salário\n".getBytes(StandardCharsets.UTF_8);
 
     assertThatThrownBy(() -> service.importar(USUARIO, semCabecalho))
         .isInstanceOf(RegraNegocioException.class)
@@ -221,7 +221,7 @@ class ImportacaoServiceTest {
 
   @Test
   void deveRecusarArquivoComMaisDe5000LinhasSemGravarNada() {
-    String linhas = "A;RECEITA;8;2026;1;Salário\n".repeat(LeitorCsv.MAXIMO_LINHAS + 1);
+    String linhas = "A;RECEITA;15/08/2026;1;Salário\n".repeat(LeitorCsv.MAXIMO_LINHAS + 1);
 
     assertThatThrownBy(() -> importar(linhas)).hasMessage(LeitorCsv.MSG_MUITAS_LINHAS);
     verifyNoInteractions(lancamentos);
