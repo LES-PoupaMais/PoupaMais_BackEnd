@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,10 +23,12 @@ import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.shared.security.JwtService;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.assertj.core.data.TemporalUnitOffset;
@@ -37,6 +40,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -358,6 +362,148 @@ class LancamentoIntegracaoTest {
 
     assertThat(ids(filtro(null, 5, 2026, null, null, null)))
         .containsExactly(outroDia20.id(), dia20.id(), dia3.id());
+  }
+
+  // ---------- paginação (GET /lancamentos) ----------
+
+  /** 5 lançamentos: três no mesmo dia (empate desempatado pelo id) e dois em dias diferentes. */
+  private List<Long> cincoEmOrdemDaListagem() {
+    LancamentoResumo dia1 = criarEm(LocalDate.of(2026, 7, 1));
+    LancamentoResumo a = criarEm(LocalDate.of(2026, 7, 10));
+    LancamentoResumo b = criarEm(LocalDate.of(2026, 7, 10));
+    LancamentoResumo dia20 = criarEm(LocalDate.of(2026, 7, 20));
+    LancamentoResumo c = criarEm(LocalDate.of(2026, 7, 10));
+    return List.of(dia20.id(), c.id(), b.id(), a.id(), dia1.id());
+  }
+
+  private List<Long> idsDaPagina(int pagina, int tamanho) {
+    return service.listarPagina(usuarioA, FiltroLancamento.vazio(), pagina, tamanho).stream()
+        .map(LancamentoResumo::id)
+        .toList();
+  }
+
+  @Test
+  void paginasSeguidasCobremTudoNaOrdemDaListagemSemRepetir() {
+    List<Long> esperado = cincoEmOrdemDaListagem();
+
+    Page<LancamentoResumo> primeira =
+        service.listarPagina(usuarioA, FiltroLancamento.vazio(), 0, 2);
+    Page<LancamentoResumo> ultima = service.listarPagina(usuarioA, FiltroLancamento.vazio(), 2, 2);
+
+    assertThat(primeira.getTotalElements()).isEqualTo(5);
+    assertThat(primeira.getTotalPages()).isEqualTo(3);
+    assertThat(primeira.getContent())
+        .extracting(LancamentoResumo::id)
+        .containsExactly(esperado.get(0), esperado.get(1));
+    assertThat(idsDaPagina(1, 2)).containsExactly(esperado.get(2), esperado.get(3));
+    assertThat(ultima.getContent())
+        .extracting(LancamentoResumo::id)
+        .containsExactly(esperado.get(4));
+    assertThat(ultima.getContent().getFirst().categorias())
+        .extracting(CategoriaResumo::id)
+        .containsExactly(mercado);
+  }
+
+  @Test
+  void ordemEstavelEntrePaginasComDatasIguais() {
+    List<Long> esperado = cincoEmOrdemDaListagem();
+
+    for (int i = 0; i < 3; i++) {
+      List<Long> concatenado = new ArrayList<>();
+      for (int pagina = 0; pagina < 5; pagina++) {
+        concatenado.addAll(idsDaPagina(pagina, 1));
+      }
+      assertThat(concatenado).containsExactlyElementsOf(esperado);
+    }
+  }
+
+  @Test
+  void paginaAlemDoFimVemVaziaComTotalCorreto() {
+    cincoEmOrdemDaListagem();
+
+    Page<LancamentoResumo> alem = service.listarPagina(usuarioA, FiltroLancamento.vazio(), 9, 2);
+
+    assertThat(alem.getContent()).isEmpty();
+    assertThat(alem.getTotalElements()).isEqualTo(5);
+    assertThat(alem.getTotalPages()).isEqualTo(3);
+  }
+
+  @Test
+  void apiPaginaComPadrao12EFiltroAplicadoAoTotal() throws Exception {
+    for (int i = 0; i < 13; i++) {
+      criarEm(LocalDate.of(2026, 3, 1 + i));
+    }
+    criar(usuarioA, "Outro mês", TipoLancamento.RECEITA, LocalDate.of(2026, 4, 1), List.of(lazer));
+    criar(
+        usuarioB,
+        "De outro usuário",
+        TipoLancamento.DESPESA,
+        LocalDate.of(2026, 3, 5),
+        List.of(categorias.buscarOuCriar(usuarioB, "Mercado").id()));
+    String bearer = "Bearer " + jwtService.gerar(usuarioA).token();
+
+    mvc.perform(
+            get("/api/lancamentos")
+                .param("mes", "3")
+                .param("ano", "2026")
+                .header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.itens.length()").value(12))
+        .andExpect(jsonPath("$.itens[0].data").value("2026-03-13"))
+        .andExpect(jsonPath("$.itens[0].categorias[0].descricao").value("Mercado"))
+        .andExpect(jsonPath("$.pagina").value(0))
+        .andExpect(jsonPath("$.tamanho").value(12))
+        .andExpect(jsonPath("$.total").value(13))
+        .andExpect(jsonPath("$.totalPaginas").value(2));
+    mvc.perform(
+            get("/api/lancamentos")
+                .param("mes", "3")
+                .param("ano", "2026")
+                .param("pagina", "1")
+                .header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.itens.length()").value(1))
+        .andExpect(jsonPath("$.itens[0].data").value("2026-03-01"))
+        .andExpect(jsonPath("$.total").value(13));
+    mvc.perform(
+            get("/api/lancamentos")
+                .param("descricao", "nada-assim")
+                .header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.itens.length()").value(0))
+        .andExpect(jsonPath("$.total").value(0))
+        .andExpect(jsonPath("$.totalPaginas").value(0));
+    mvc.perform(
+            get("/api/lancamentos")
+                .param("tamanho", "101")
+                .header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("tamanho"));
+  }
+
+  @Test
+  void exportacaoIgnoraAPaginacao() throws Exception {
+    for (int i = 0; i < 13; i++) {
+      criarEm(LocalDate.of(2026, 3, 1 + i));
+    }
+    String bearer = "Bearer " + jwtService.gerar(usuarioA).token();
+
+    String csv =
+        mvc.perform(
+                get("/api/lancamentos/exportar")
+                    .param("formato", "csv")
+                    .param("mes", "3")
+                    .param("ano", "2026")
+                    .param("pagina", "0")
+                    .param("tamanho", "1")
+                    .header(HttpHeaders.AUTHORIZATION, bearer))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString(StandardCharsets.UTF_8);
+
+    assertThat(csv.lines().filter(l -> !l.isBlank()).count()).isEqualTo(14); // cabeçalho + 13
+    assertThat(facade.listar(usuarioA, filtro(null, 3, 2026, null, null, null))).hasSize(13);
   }
 
   @Test

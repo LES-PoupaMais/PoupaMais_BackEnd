@@ -1,6 +1,7 @@
 package br.com.poupamais.lancamento.model.repositories;
 
 import br.com.poupamais.lancamento.model.entidades.Lancamento;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Sort;
@@ -23,4 +24,11 @@ public interface LancamentoRepository
   @Override
   @EntityGraph(attributePaths = "categorias")
   List<Lancamento> findAll(Specification<Lancamento> spec, Sort sort);
+
+  /**
+   * Carrega com as categorias os lançamentos de uma página. A página em si vem de {@code
+   * findAll(spec, pageable)} sem o fetch: com fetch de coleção o Hibernate cortaria em memória.
+   */
+  @EntityGraph(attributePaths = "categorias")
+  List<Lancamento> findByIdIn(Collection<Long> ids);
 }

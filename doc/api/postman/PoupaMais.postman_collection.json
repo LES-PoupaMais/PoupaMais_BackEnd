@@ -930,7 +930,7 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/lancamentos",
+              "raw": "{{baseUrl}}/api/lancamentos?pagina=0&tamanho=12",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -968,10 +968,20 @@
                   "key": "categoriaId",
                   "value": "{{categoriaId}}",
                   "disabled": true
+                },
+                {
+                  "key": "pagina",
+                  "value": "0",
+                  "disabled": false
+                },
+                {
+                  "key": "tamanho",
+                  "value": "12",
+                  "disabled": false
                 }
               ]
             },
-            "description": "Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira."
+            "description": "Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira. Paginado: `pagina` começa em 0 (padrão 0) e `tamanho` vai de 1 a 100 (padrão 12); fora disso, **400**. Resposta: `{itens, pagina, tamanho, total, totalPaginas}`. A exportação não pagina."
           },
           "event": [
             {

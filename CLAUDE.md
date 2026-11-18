@@ -384,10 +384,18 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
 
 **Lançamentos** (módulo `lancamento`, RF001–RF005, RF008 / UC001, UC002, UC004, UC010)
 
-- `GET /api/lancamentos?descricao=&mes=&ano=&tipo=&status=&categoriaId=` → lista ordenada por **data desc, id desc**.
+- `GET /api/lancamentos?descricao=&mes=&ano=&tipo=&status=&categoriaId=&pagina=&tamanho=` → **página** ordenada por
+  **data desc, id desc** (o id desempata datas iguais, então a ordem é estável entre páginas).
   `mes`/`ano` filtram pelo mês da `data` (do dia 1 ao último dia).
-  `descricao` = contém, sem diferenciar maiúsculas (`lower(...) like`). Sem paginação. Categoria/lançamento de outro usuário → `404`.
+  `descricao` = contém, sem diferenciar maiúsculas (`lower(...) like`). Categoria/lançamento de outro usuário → `404`.
   Sem `status` = ATIVO + INATIVO (**nunca** DELETADO). `status=ATIVO|INATIVO|DELETADO` filtra só aquele (DELETADO = "Lixeira").
+  - Paginação (Q3): `pagina` começa em **0** (padrão 0) e `tamanho` vai de **1 a 100** (padrão **12**). `pagina` < 0 ou
+    `tamanho` fora de 1–100 → `400` "Dados inválidos" com `erros[{campo: "pagina", mensagem: "A página deve ser maior ou igual a 0"}]`
+    ou `erros[{campo: "tamanho", mensagem: "O tamanho da página deve ser de 1 a 100"}]`. Página além do fim → `200` com `itens: []`
+    e o `total` correto. A consulta pagina no banco (`LIMIT/OFFSET` + `count`); as categorias da página vêm numa segunda consulta.
+  - Resposta: `{ "itens": [<lançamento>...], "pagina": 0, "tamanho": 12, "total": 30, "totalPaginas": 3 }` (`itens` no formato
+    de lançamento abaixo; `total` = quantos lançamentos o filtro encontra; sem resultado: `total: 0`, `totalPaginas: 0`).
+  - A **exportação** (`/exportar`) e os usos internos (`LancamentoFacade.listar`, dashboard, LGPD) **não paginam**: trazem tudo.
 - `GET /api/lancamentos/{id}`
 - `POST /api/lancamentos` `{descricao, tipo, data, valor, categoriaIds: [..]}` → `201`. `data` em ISO `"AAAA-MM-DD"` (o front mostra
   dd/mm/aaaa). Data ausente → `400` "A data é obrigatória"; dia que não existe ou formato errado (`"2026-02-31"`, `"05/11/2026"`) → `400`
@@ -611,4 +619,4 @@ Nada disso é para implementar sem decisão da equipe.
 
 ## Pontos em aberto (decidir com a equipe antes de implementar)
 
-1. Paginação da listagem: não é exigida; a lista atual devolve tudo. Adicionar `page/size` se o volume crescer.
+Nenhum no momento.
