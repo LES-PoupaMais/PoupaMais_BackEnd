@@ -358,7 +358,17 @@ Exportação de dados do titular (`GET /api/usuarios/me/dados`, decidido em `fea
 **Categorias** (módulo `categoria`, RF011 / UC009). Não há tela própria no front: criar e editar são feitos por modais abertos
 no dropdown de categorias do formulário de lançamento. Por isso o `POST` devolve a categoria criada, que o front já seleciona.
 
-- `GET /api/categorias?ativa=true|false` (sem param = todas)
+- `GET /api/categorias?ativa=true|false&mes=&ano=` (sem `ativa` = todas) → `200 [{id, descricao, ativa, quantidadeLancamentos}]`.
+  `quantidadeLancamentos` = lançamentos **ATIVO e INATIVO** do usuário com essa categoria cuja `data` cai no mês `mes`/`ano`
+  (do dia 1 ao último dia; DELETADO e outros meses não contam; sem lançamento → `0`; lançamento com 2 categorias conta nas duas).
+  `mes`/`ano` opcionais e com a mesma validação do dashboard: o que faltar vem de `Periodo.atual()` (fuso de Brasília); fora de
+  1–12 / 2000–2100 ou não numérico → `400` "Dados inválidos" com `erros[{campo, mensagem}]`. Eles **não filtram** quais categorias
+  vêm (só o `ativa` filtra) nem mudam a ordenação. Uma única consulta agregada (`CategoriaRepository.contarLancamentosPorCategoria`,
+  nativa com `group by`, sem N+1). `POST`/`PUT`/`PATCH` continuam devolvendo `{id, descricao, ativa}` (sem a contagem).
+  ```json
+  [{ "id": 3, "descricao": "Lazer", "ativa": true, "quantidadeLancamentos": 4 },
+   { "id": 8, "descricao": "Viagem", "ativa": false, "quantidadeLancamentos": 0 }]
+  ```
 - `POST /api/categorias` `{descricao}` → `201 {id, descricao, ativa}` · duplicada (case-insensitive) → `409`
 - `PUT /api/categorias/{id}` `{descricao}`
 - `PATCH /api/categorias/{id}/status` `{ativa: boolean}`
@@ -369,8 +379,8 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
   `listarTodas(idUsuario)` (ativas e inativas, mesma ordem do `GET` sem filtro),
   `validarAtivasDoUsuario(idUsuario, ids)` → **`404` "Categoria não encontrada"** se alguma não existir ou for de outro usuário (RN005)
   e **`422`** se alguma estiver inativa, `buscarOuCriar(idUsuario, descricao)` (não reativa inativa), `criarPadroes(idUsuario)`.
-- O bloqueio do `DELETE` consulta `poupamais.categorias_lancamentos` por **query nativa** no `CategoriaRepository`
-  (o módulo `categoria` não pode depender de `lancamento`). Corrida no índice único `lower(descricao)` → `409`.
+- O bloqueio do `DELETE` e a contagem `quantidadeLancamentos` consultam `poupamais.categorias_lancamentos` (e `lancamento`) por
+  **query nativa** no `CategoriaRepository` (o módulo `categoria` não pode depender de `lancamento`: criaria ciclo). Corrida no índice único `lower(descricao)` → `409`.
 
 **Lançamentos** (módulo `lancamento`, RF001–RF005, RF008 / UC001, UC002, UC004, UC010)
 
