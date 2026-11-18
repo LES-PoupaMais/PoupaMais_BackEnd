@@ -52,6 +52,11 @@
       "type": "string"
     },
     {
+      "key": "data",
+      "value": "2026-11-05",
+      "type": "string"
+    },
+    {
       "key": "token",
       "value": "",
       "type": "string"
@@ -805,10 +810,10 @@
                 "lancamentos"
               ]
             },
-            "description": "Guarda o id em `lancamentoId`. `categoriaIds` aceita várias categorias.",
+            "description": "Guarda o id em `lancamentoId`. `data` em ISO (`AAAA-MM-DD`, variável `data`); `categoriaIds` aceita várias categorias. A resposta traz `dataCadastro`, `dataAtualizacao` e `dataExclusao` com hora (ISO-8601, UTC).",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"descricao\": \"Supermercado\",\n  \"tipo\": \"DESPESA\",\n  \"mes\": {{mes}},\n  \"ano\": {{ano}},\n  \"valor\": 680.00,\n  \"categoriaIds\": [{{categoriaId}}]\n}",
+              "raw": "{\n  \"descricao\": \"Supermercado\",\n  \"tipo\": \"DESPESA\",\n  \"data\": \"{{data}}\",\n  \"valor\": 680.00,\n  \"categoriaIds\": [{{categoriaId}}]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -853,10 +858,10 @@
                 "lancamentos"
               ]
             },
-            "description": "Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`.",
+            "description": "Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`. `2026-02-31` não existe: **400** com erro no campo `data`.",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"descricao\": \"\",\n  \"tipo\": \"DESPESA\",\n  \"mes\": 13,\n  \"ano\": {{ano}},\n  \"valor\": 0,\n  \"categoriaIds\": []\n}",
+              "raw": "{\n  \"descricao\": \"\",\n  \"tipo\": \"DESPESA\",\n  \"data\": \"2026-02-31\",\n  \"valor\": 0,\n  \"categoriaIds\": []\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1026,7 +1031,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"descricao\": \"Supermercado do mês\",\n  \"tipo\": \"DESPESA\",\n  \"mes\": {{mes}},\n  \"ano\": {{ano}},\n  \"valor\": 720.50,\n  \"categoriaIds\": [{{categoriaId}}]\n}",
+              "raw": "{\n  \"descricao\": \"Supermercado do mês\",\n  \"tipo\": \"DESPESA\",\n  \"data\": \"{{data}}\",\n  \"valor\": 720.50,\n  \"categoriaIds\": [{{categoriaId}}]\n}",
               "options": {
                 "raw": {
                   "language": "json"

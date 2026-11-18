@@ -38,7 +38,7 @@ Suba a API: `docker compose up -d --build` (API em http://localhost:8080, e-mail
 - **`Excluir minha conta` fica por último:** apaga o usuário de teste e todos os dados dele. Depois, o `Cadastro` funciona de novo.
 - Também há casos de erro de propósito: login com senha errada (`401`), lançamento inválido (`400` com `erros[]`) e exclusão de
   categoria em uso (`422`).
-- Variáveis padrão: `baseUrl` `http://localhost:8080`, usuário `teste.colecao@poupamais.local` / `senha123`, `mes` `11`, `ano` `2026`.
+- Variáveis padrão: `baseUrl` `http://localhost:8080`, usuário `teste.colecao@poupamais.local` / `senha123`, `mes` `11`, `ano` `2026` (filtros) e `data` `2026-11-05` (corpo do lançamento, ISO `AAAA-MM-DD`).
 
 ## Endpoint novo ou alterado (regra da equipe)
 

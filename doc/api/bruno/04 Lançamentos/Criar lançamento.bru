@@ -14,8 +14,7 @@ body:json {
   {
     "descricao": "Supermercado",
     "tipo": "DESPESA",
-    "mes": {{mes}},
-    "ano": {{ano}},
+    "data": "{{data}}",
     "valor": 680.00,
     "categoriaIds": [{{categoriaId}}]
   }
@@ -34,5 +33,5 @@ tests {
 }
 
 docs {
-  Guarda o id em `lancamentoId`. `categoriaIds` aceita várias categorias.
+  Guarda o id em `lancamentoId`. `data` em ISO (`AAAA-MM-DD`, variável `data`); `categoriaIds` aceita várias categorias. A resposta traz `dataCadastro`, `dataAtualizacao` e `dataExclusao` com hora (ISO-8601, UTC).
 }
