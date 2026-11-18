@@ -414,11 +414,14 @@ Response de lançamento:
     { "mes": 5, "ano": 2026, "receitas": 0, "despesas": 0, "saldo": 0 }
   ],
   "despesasPorCategoria": [{ "categoriaId": 2, "descricao": "Moradia", "valor": 2100.0 }],
-  "maioresDespesas": [{ "id": 9, "descricao": "Aluguel", "valor": 2100.0, "categorias": ["Moradia"] }]
+  "maioresDespesas": [{ "id": 9, "descricao": "Aluguel", "valor": 2100.0, "categorias": ["Moradia"] }],
+  "pesoMaioresDespesas": { "valor": 2100.0, "percentual": 43.93 }
 }
 ```
 
 `ultimosMeses` tem sempre 4 itens, do mais antigo ao selecionado; meses sem lançamento vêm com zeros.
+`pesoMaioresDespesas` vem sempre: `valor` = soma das `maioresDespesas`; `percentual` = valor / `despesas` × 100 (2 casas, `HALF_UP`),
+`null` se o mês não tem despesa ativa (aí `valor` = 0, como a `taxaGasto` sem receita).
 
 **Padrão de erro** (RNF007, mensagens em português prontas para exibir):
 
