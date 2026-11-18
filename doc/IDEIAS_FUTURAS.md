@@ -44,7 +44,7 @@ Implementação, quando decidida: tokens nas variáveis do shadcn em `src/app/gl
 
 | #   | Ideia                                                                                                                   | Observação                        |
 | --- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| 1   | Cartões de crédito (vencimento, melhor dia de compra, em que fatura a compra cai)                                       | Hoje o lançamento só tem mês/ano  |
+| 1   | Cartões de crédito (vencimento, melhor dia de compra, em que fatura a compra cai)                                       | Hoje o lançamento tem só a data (sem fatura nem vencimento) |
 | 2   | Faturas: fechamento, situação (aberta, paga, parcial, pendente para o mês seguinte), pagar fatura, alerta de vencimento |                                   |
 | 3   | Compras parceladas e antecipação de parcelas                                                                            |                                   |
 | 4   | Contas bancárias e forma de pagamento (cartão, PIX, boleto)                                                             |                                   |
