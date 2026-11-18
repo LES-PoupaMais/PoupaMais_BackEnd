@@ -9,6 +9,7 @@ import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse;
 import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.MaiorDespesa;
 import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.MesResumo;
+import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.PesoMaioresDespesas;
 import br.com.poupamais.dashboard.service.ClassificacaoTaxa;
 import br.com.poupamais.dashboard.service.MensagemSaldoFactory;
 import br.com.poupamais.dashboard.service.RateioCategorias;
@@ -146,6 +147,8 @@ class DashboardServiceImplTest {
     assertThat(r.ultimosMeses()).hasSize(4);
     assertThat(r.despesasPorCategoria()).isEmpty();
     assertThat(r.maioresDespesas()).isEmpty();
+    assertThat(r.pesoMaioresDespesas().valor()).isEqualByComparingTo("0");
+    assertThat(r.pesoMaioresDespesas().percentual()).isNull();
   }
 
   @Test
@@ -169,6 +172,63 @@ class DashboardServiceImplTest {
         .containsExactly(maior.id(), m3.id(), m4.id(), empate1.id(), empate2.id());
     assertThat(ranking.get(0).categorias()).containsExactly("Moradia", "Lazer");
     assertThat(ranking.get(0).valor()).isEqualByComparingTo("900.00");
+  }
+
+  @Test
+  void devePesarAsCincoMaioresSobreTodasAsDespesasDoMes() {
+    List<LancamentoResumo> dados = new ArrayList<>();
+    dados.add(lanc(TipoLancamento.RECEITA, 8, 2026, "99999.00", LAZER));
+    dados.add(lanc(TipoLancamento.DESPESA, 7, 2026, "5000.00", LAZER)); // outro mês
+    for (String valor : List.of("900.00", "70.00", "60.00", "50.00", "50.00", "10.00")) {
+      dados.add(lanc(TipoLancamento.DESPESA, 8, 2026, valor, LAZER));
+    }
+
+    PesoMaioresDespesas peso = consultar(new Periodo(8, 2026), dados).pesoMaioresDespesas();
+
+    // 1130,00 / 1140,00 = 99,1228...% -> 99,12
+    assertThat(peso.valor()).isEqualByComparingTo("1130.00");
+    assertThat(peso.percentual()).isEqualByComparingTo("99.12");
+  }
+
+  @Test
+  void devePesarCemPorCentoComMenosDeCincoDespesas() {
+    PesoMaioresDespesas peso =
+        consultar(
+                new Periodo(8, 2026),
+                List.of(
+                    lanc(TipoLancamento.DESPESA, 8, 2026, "33.33", LAZER),
+                    lanc(TipoLancamento.DESPESA, 8, 2026, "66.67", MORADIA)))
+            .pesoMaioresDespesas();
+
+    assertThat(peso.valor()).isEqualByComparingTo("100.00");
+    assertThat(peso.percentual()).isEqualByComparingTo("100.00");
+  }
+
+  @Test
+  void deveDevolverPercentualNullSemDespesasMesmoComReceitas() {
+    PesoMaioresDespesas peso =
+        consultar(
+                new Periodo(8, 2026),
+                List.of(lanc(TipoLancamento.RECEITA, 8, 2026, "10.00", LAZER)))
+            .pesoMaioresDespesas();
+
+    assertThat(peso.valor()).isEqualByComparingTo("0");
+    assertThat(peso.percentual()).isNull();
+  }
+
+  @Test
+  void deveArredondarOPercentualDoPesoComHalfUp() {
+    MaiorDespesa d = new MaiorDespesa(1L, "x", new BigDecimal("1.00"), List.of());
+    // 1 / 3 = 33,333...% -> 33,33 · 2 / 3 = 66,666...% -> 66,67 · 1 / 8 = 12,5% -> 12,50
+    assertThat(DashboardServiceImpl.pesoMaiores(List.of(d), new BigDecimal("3.00")).percentual())
+        .isEqualByComparingTo("33.33");
+    assertThat(DashboardServiceImpl.pesoMaiores(List.of(d, d), new BigDecimal("3.00")).percentual())
+        .isEqualByComparingTo("66.67");
+    assertThat(DashboardServiceImpl.pesoMaiores(List.of(d), new BigDecimal("8.00")).percentual())
+        .isEqualTo(new BigDecimal("12.50"));
+    // 1 / 800 = 0,125% -> 0,13 (HALF_UP; HALF_EVEN daria 0,12)
+    assertThat(DashboardServiceImpl.pesoMaiores(List.of(d), new BigDecimal("800.00")).percentual())
+        .isEqualTo(new BigDecimal("0.13"));
   }
 
   @Test

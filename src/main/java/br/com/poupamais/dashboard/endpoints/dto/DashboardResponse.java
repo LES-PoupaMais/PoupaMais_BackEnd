@@ -16,7 +16,8 @@ public record DashboardResponse(
     String mensagem,
     List<MesResumo> ultimosMeses,
     List<DespesaCategoria> despesasPorCategoria,
-    List<MaiorDespesa> maioresDespesas) {
+    List<MaiorDespesa> maioresDespesas,
+    PesoMaioresDespesas pesoMaioresDespesas) {
 
   public record MesResumo(
       int mes, int ano, BigDecimal receitas, BigDecimal despesas, BigDecimal saldo) {}
@@ -25,4 +26,10 @@ public record DashboardResponse(
 
   public record MaiorDespesa(
       Long id, String descricao, BigDecimal valor, List<String> categorias) {}
+
+  /**
+   * Soma das {@code maioresDespesas} e o quanto ela pesa no total de despesas do mês (2 casas); sem
+   * despesas: {@code valor} 0 e {@code percentual} {@code null}, como a {@code taxaGasto}.
+   */
+  public record PesoMaioresDespesas(BigDecimal valor, BigDecimal percentual) {}
 }

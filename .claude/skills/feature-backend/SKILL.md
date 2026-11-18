@@ -1,6 +1,6 @@
 ---
 name: feature-backend
-description: Use ao criar ou alterar qualquer funcionalidade da API do PoupaMais (endpoint, regra de negócio, entidade, consulta, importação/exportação, e-mail). Guia o passo a passo no monólito modular com MVC em camadas: módulo certo, DTO, mapper, service, resource, testes unitários e de integração, contrato nos dois CLAUDE.md e conferência com o DVP.
+description: "Use ao criar ou alterar qualquer funcionalidade da API do PoupaMais (endpoint, regra de negócio, entidade, consulta, importação/exportação, e-mail). Guia o passo a passo no monólito modular com MVC em camadas: módulo certo, DTO, mapper, service, resource, testes unitários e de integração, contrato nos dois CLAUDE.md e conferência com o DVP."
 ---
 
 # Nova funcionalidade no backend
