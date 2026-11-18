@@ -41,6 +41,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -372,6 +376,65 @@ class LancamentoServiceImplTest {
 
     assertThat(service.listar(USUARIO, new FiltroLancamento(null, null, null, null, null, 1L)))
         .isEmpty();
+  }
+
+  // ---------- listarPagina ----------
+
+  private static Lancamento comId(Long id, Long... categorias) {
+    Lancamento l = existente(StatusLancamento.ATIVO, categorias);
+    l.setId(id);
+    return l;
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void listarPaginaConsultaPaginadoNoBancoComOrdenacaoDaListagem() {
+    Lancamento l1 = comId(21L, 1L);
+    Lancamento l2 = comId(20L, 1L);
+    when(repository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(l1, l2), PageRequest.of(1, 2), 7));
+    // O carregamento das categorias pode voltar em outra ordem: vale a ordem da página
+    when(repository.findByIdIn(List.of(21L, 20L))).thenReturn(List.of(l2, l1));
+    categoriasExistem(new CategoriaResumo(1L, "A", true));
+
+    Page<LancamentoResumo> pagina = service.listarPagina(USUARIO, null, 1, 2);
+
+    ArgumentCaptor<Pageable> pedido = ArgumentCaptor.forClass(Pageable.class);
+    verify(repository).findAll(any(Specification.class), pedido.capture());
+    assertThat(pedido.getValue().getPageNumber()).isEqualTo(1);
+    assertThat(pedido.getValue().getPageSize()).isEqualTo(2);
+    assertThat(pedido.getValue().getSort()).isEqualTo(LancamentoRepository.ORDENACAO);
+    assertThat(pagina.getContent()).extracting(LancamentoResumo::id).containsExactly(21L, 20L);
+    assertThat(pagina.getTotalElements()).isEqualTo(7);
+    assertThat(pagina.getTotalPages()).isEqualTo(4);
+    assertThat(pagina.getNumber()).isEqualTo(1);
+    verify(repository, never()).findAll(any(Specification.class), any(Sort.class));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void listarPaginaVaziaNaoCarregaCategoriasEMantemTotal() {
+    when(repository.findAll(any(Specification.class), any(Pageable.class)))
+        .thenReturn(new PageImpl<>(List.of(), PageRequest.of(5, 12), 30));
+
+    Page<LancamentoResumo> pagina = service.listarPagina(USUARIO, FiltroLancamento.vazio(), 5, 12);
+
+    assertThat(pagina.getContent()).isEmpty();
+    assertThat(pagina.getTotalElements()).isEqualTo(30);
+    assertThat(pagina.getTotalPages()).isEqualTo(3);
+    verify(repository, never()).findByIdIn(any());
+    verifyNoInteractions(categoriaFacade);
+  }
+
+  @Test
+  void listarPaginaDevolve404QuandoFiltroDeCategoriaNaoEDoUsuario() {
+    when(categoriaFacade.buscarPorIds(USUARIO, List.of(77L))).thenReturn(List.of());
+    FiltroLancamento filtro = new FiltroLancamento(null, null, null, null, null, 77L);
+
+    assertThatThrownBy(() -> service.listarPagina(USUARIO, filtro, 0, 12))
+        .isInstanceOf(RecursoNaoEncontradoException.class)
+        .hasMessage("Categoria não encontrada");
+    verifyNoInteractions(repository);
   }
 
   @Test

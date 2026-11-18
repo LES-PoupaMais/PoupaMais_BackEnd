@@ -99,8 +99,10 @@ REQUISICOES = [
       scripts=[("salvar", "categoriaId", "id")],
       doc="Guarda o id em `categoriaId`. **409** se já existir uma com a mesma descrição (sem diferenciar maiúsculas)."),
     r("03 Categorias", "Listar categorias", "GET", "/api/categorias",
-      query=[("ativa", "true", False)],
-      doc="Sem `ativa` lista todas; `ativa=true` ou `false` filtra."),
+      query=[("ativa", "true", False), ("mes", "{{mes}}", False), ("ano", "{{ano}}", False)],
+      doc="Sem `ativa` lista todas; `ativa=true` ou `false` filtra. Cada categoria traz `quantidadeLancamentos`: "
+          "lançamentos ATIVO e INATIVO cuja `data` cai em `mes`/`ano` (sem eles, o mês atual; DELETADO não conta). "
+          "`mes`/`ano` não filtram as categorias. Mês fora de 1–12 ou ano fora de 2000–2100 → **400**."),
     r("03 Categorias", "Editar categoria", "PUT", "/api/categorias/{{categoriaId}}",
       json_body='{\n  "descricao": "Supermercado {{$timestamp}}"\n}'),
     r("03 Categorias", "Inativar categoria", "PATCH", "/api/categorias/{{categoriaId}}/status",
@@ -125,8 +127,11 @@ REQUISICOES = [
           "`2026-02-31` não existe: **400** com erro no campo `data`."),
     r("04 Lançamentos", "Excluir categoria em uso (espera 422)", "DELETE", "/api/categorias/{{categoriaId}}",
       status=(422,)),
-    r("04 Lançamentos", "Listar lançamentos", "GET", "/api/lancamentos", query=FILTROS,
-      doc="Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira."),
+    r("04 Lançamentos", "Listar lançamentos", "GET", "/api/lancamentos",
+      query=FILTROS + [("pagina", "0", True), ("tamanho", "12", True)],
+      doc="Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira. "
+          "Paginado: `pagina` começa em 0 (padrão 0) e `tamanho` vai de 1 a 100 (padrão 12); fora disso, **400**. "
+          "Resposta: `{itens, pagina, tamanho, total, totalPaginas}`. A exportação não pagina."),
     r("04 Lançamentos", "Buscar lançamento", "GET", "/api/lancamentos/{{lancamentoId}}"),
     r("04 Lançamentos", "Editar lançamento", "PUT", "/api/lancamentos/{{lancamentoId}}",
       json_body=LANCAMENTO.replace("Supermercado", "Supermercado do mês").replace("680.00", "720.50")),

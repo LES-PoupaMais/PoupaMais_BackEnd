@@ -17,7 +17,13 @@ import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,12 +50,21 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
   @Override
   @Transactional(readOnly = true)
   public List<LancamentoResumo> listar(Long idUsuario, FiltroLancamento filtro) {
-    FiltroLancamento f = filtro == null ? FiltroLancamento.vazio() : filtro;
-    if (f.categoriaId() != null
-        && categoriaFacade.buscarPorIds(idUsuario, List.of(f.categoriaId())).isEmpty()) {
-      throw new RecursoNaoEncontradoException(MSG_CATEGORIA_NAO_ENCONTRADA);
-    }
-    return buscarTodos(LancamentoSpecifications.doFiltro(idUsuario, f));
+    return buscarTodos(especificacaoDoFiltro(idUsuario, filtro));
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Page<LancamentoResumo> listarPagina(
+      Long idUsuario, FiltroLancamento filtro, int pagina, int tamanho) {
+    Page<Lancamento> encontrados =
+        repository.findAll(
+            especificacaoDoFiltro(idUsuario, filtro),
+            PageRequest.of(pagina, tamanho, LancamentoRepository.ORDENACAO));
+    return new PageImpl<>(
+        conversor.converter(comCategorias(encontrados.getContent())),
+        encontrados.getPageable(),
+        encontrados.getTotalElements());
   }
 
   @Override
@@ -144,6 +159,27 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
   }
 
   // ---------- apoio ----------
+
+  /** Filtros da listagem (nulo = sem filtro); categoria de outro usuário → 404. */
+  private Specification<Lancamento> especificacaoDoFiltro(Long idUsuario, FiltroLancamento filtro) {
+    FiltroLancamento f = filtro == null ? FiltroLancamento.vazio() : filtro;
+    if (f.categoriaId() != null
+        && categoriaFacade.buscarPorIds(idUsuario, List.of(f.categoriaId())).isEmpty()) {
+      throw new RecursoNaoEncontradoException(MSG_CATEGORIA_NAO_ENCONTRADA);
+    }
+    return LancamentoSpecifications.doFiltro(idUsuario, f);
+  }
+
+  /** Os mesmos lançamentos, na mesma ordem, já com as categorias (uma consulta, sem N+1). */
+  private List<Lancamento> comCategorias(List<Lancamento> lancamentos) {
+    if (lancamentos.isEmpty()) {
+      return List.of();
+    }
+    Map<Long, Lancamento> porId =
+        repository.findByIdIn(lancamentos.stream().map(Lancamento::getId).toList()).stream()
+            .collect(Collectors.toMap(Lancamento::getId, Function.identity()));
+    return lancamentos.stream().map(l -> porId.getOrDefault(l.getId(), l)).toList();
+  }
 
   private List<LancamentoResumo> buscarTodos(Specification<Lancamento> spec) {
     return conversor.converter(repository.findAll(spec, LancamentoRepository.ORDENACAO));

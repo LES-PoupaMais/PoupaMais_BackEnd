@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/api/lancamentos
+  url: {{baseUrl}}/api/lancamentos?pagina=0&tamanho=12
   body: none
   auth: inherit
 }
@@ -17,6 +17,8 @@ params:query {
   ~tipo: DESPESA
   ~status: ATIVO
   ~categoriaId: {{categoriaId}}
+  pagina: 0
+  tamanho: 12
 }
 
 tests {
@@ -26,5 +28,5 @@ tests {
 }
 
 docs {
-  Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira.
+  Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira. Paginado: `pagina` começa em 0 (padrão 0) e `tamanho` vai de 1 a 100 (padrão 12); fora disso, **400**. Resposta: `{itens, pagina, tamanho, total, totalPaginas}`. A exportação não pagina.
 }
