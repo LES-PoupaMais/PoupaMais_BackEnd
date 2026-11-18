@@ -12,6 +12,7 @@ import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse;
 import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.DespesaCategoria;
 import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.MaiorDespesa;
 import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.MesResumo;
+import br.com.poupamais.dashboard.endpoints.dto.DashboardResponse.PesoMaioresDespesas;
 import br.com.poupamais.dashboard.service.ClassificacaoTaxa;
 import br.com.poupamais.dashboard.service.DashboardService;
 import br.com.poupamais.shared.config.WebConfiguration;
@@ -61,7 +62,8 @@ class DashboardResourceTest {
         "Saldo positivo de R$ 4.920,00 em Agosto",
         List.of(new MesResumo(5, 2026, zero, zero, zero)),
         List.of(new DespesaCategoria(2L, "Moradia", new BigDecimal("2100.00"))),
-        List.of(new MaiorDespesa(9L, "Aluguel", new BigDecimal("2100.00"), List.of("Moradia"))));
+        List.of(new MaiorDespesa(9L, "Aluguel", new BigDecimal("2100.00"), List.of("Moradia"))),
+        new PesoMaioresDespesas(new BigDecimal("2100.00"), new BigDecimal("43.93")));
   }
 
   @Test
@@ -84,7 +86,9 @@ class DashboardResourceTest {
         .andExpect(jsonPath("$.despesasPorCategoria[0].descricao").value("Moradia"))
         .andExpect(jsonPath("$.despesasPorCategoria[0].valor").value(2100.0))
         .andExpect(jsonPath("$.maioresDespesas[0].id").value(9))
-        .andExpect(jsonPath("$.maioresDespesas[0].categorias[0]").value("Moradia"));
+        .andExpect(jsonPath("$.maioresDespesas[0].categorias[0]").value("Moradia"))
+        .andExpect(jsonPath("$.pesoMaioresDespesas.valor").value(2100.0))
+        .andExpect(jsonPath("$.pesoMaioresDespesas.percentual").value(43.93));
   }
 
   @Test
@@ -114,13 +118,16 @@ class DashboardResourceTest {
             base.mensagem(),
             List.of(),
             List.of(),
-            List.of());
+            List.of(),
+            new PesoMaioresDespesas(new BigDecimal("0.00"), null));
     when(service.consultar(any(), any())).thenReturn(semTaxa);
 
     mvc.perform(get("/api/dashboard?mes=1&ano=2026").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.taxaGasto").isEmpty())
-        .andExpect(jsonPath("$.classificacaoTaxa").isEmpty());
+        .andExpect(jsonPath("$.classificacaoTaxa").isEmpty())
+        .andExpect(jsonPath("$.pesoMaioresDespesas.valor").value(0))
+        .andExpect(jsonPath("$.pesoMaioresDespesas.percentual").isEmpty());
   }
 
   @ParameterizedTest

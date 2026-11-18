@@ -167,7 +167,10 @@ class DashboardIntegracaoTest {
         .andExpect(jsonPath("$.maioresDespesas[1].id").value(feira))
         .andExpect(jsonPath("$.maioresDespesas[1].categorias.length()").value(3))
         .andExpect(jsonPath("$.maioresDespesas[1].categorias[0]").value("Moradia"))
-        .andExpect(jsonPath("$.maioresDespesas[2].id").value(lanche));
+        .andExpect(jsonPath("$.maioresDespesas[2].id").value(lanche))
+        // só 3 despesas ativas no mês: as maiores são todas, peso = 100%
+        .andExpect(jsonPath("$.pesoMaioresDespesas.valor").value(1700.0))
+        .andExpect(jsonPath("$.pesoMaioresDespesas.percentual").value(100.0));
   }
 
   @Test
@@ -180,6 +183,8 @@ class DashboardIntegracaoTest {
         .andExpect(jsonPath("$.mensagem").value("Nenhum lançamento ativo em Março"))
         .andExpect(jsonPath("$.ultimosMeses.length()").value(4))
         .andExpect(jsonPath("$.despesasPorCategoria").isEmpty())
-        .andExpect(jsonPath("$.maioresDespesas").isEmpty());
+        .andExpect(jsonPath("$.maioresDespesas").isEmpty())
+        .andExpect(jsonPath("$.pesoMaioresDespesas.valor").value(0))
+        .andExpect(jsonPath("$.pesoMaioresDespesas.percentual").isEmpty());
   }
 }
