@@ -1,7 +1,7 @@
 meta {
   name: Editar lançamento
   type: http
-  seq: 6
+  seq: 8
 }
 
 put {
@@ -24,4 +24,8 @@ tests {
   test("Status esperado (200)", function () {
     expect([200]).to.include(res.status);
   });
+}
+
+docs {
+  `status` opcional (`ATIVO` ou `INATIVO`); ausente = mantém o atual. Na lixeira → **422**.
 }

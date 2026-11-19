@@ -258,7 +258,7 @@ class LancamentoResourceTest {
     RecursoNaoEncontradoException naoEncontrado =
         new RecursoNaoEncontradoException("Lançamento não encontrado");
     when(service.buscar(USUARIO, 2L)).thenThrow(naoEncontrado);
-    when(service.editar(eq(USUARIO), eq(2L), any())).thenThrow(naoEncontrado);
+    when(service.editar(eq(USUARIO), eq(2L), any(), any())).thenThrow(naoEncontrado);
     when(service.alterarStatus(USUARIO, 2L, StatusLancamento.INATIVO)).thenThrow(naoEncontrado);
     doThrow(naoEncontrado).when(service).excluir(USUARIO, 2L);
     when(service.restaurar(USUARIO, 2L)).thenThrow(naoEncontrado);
@@ -282,12 +282,62 @@ class LancamentoResourceTest {
             LocalDate.of(2026, 8, 5),
             new BigDecimal("8500.00"),
             List.of(3L));
-    when(service.criar(USUARIO, esperado)).thenReturn(resumo(StatusLancamento.ATIVO));
+    when(service.criar(USUARIO, esperado, null)).thenReturn(resumo(StatusLancamento.ATIVO));
 
     mvc.perform(json(post("/api/lancamentos"), CORPO))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.id").value(1))
         .andExpect(jsonPath("$.status").value("ATIVO"));
+  }
+
+  @Test
+  void deveRepassarOStatusDoCorpoNoPostENoPut() throws Exception {
+    String inativo = CORPO.replace("\"categoriaIds\"", "\"status\":\"INATIVO\",\"categoriaIds\"");
+    when(service.criar(eq(USUARIO), any(), eq(StatusLancamento.INATIVO)))
+        .thenReturn(resumo(StatusLancamento.INATIVO));
+    when(service.editar(eq(USUARIO), eq(1L), any(), eq(StatusLancamento.INATIVO)))
+        .thenReturn(resumo(StatusLancamento.INATIVO));
+
+    mvc.perform(json(post("/api/lancamentos"), inativo))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.status").value("INATIVO"));
+    mvc.perform(json(put("/api/lancamentos/1"), inativo))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("INATIVO"));
+  }
+
+  @Test
+  void deveRepassarStatusNuloQuandoNaoVemNoPut() throws Exception {
+    when(service.editar(USUARIO, 1L, novoDoCorpo(), null))
+        .thenReturn(resumo(StatusLancamento.ATIVO));
+
+    mvc.perform(json(put("/api/lancamentos/1"), CORPO)).andExpect(status().isOk());
+
+    verify(service).editar(USUARIO, 1L, novoDoCorpo(), null);
+  }
+
+  private static NovoLancamento novoDoCorpo() {
+    return new NovoLancamento(
+        "Salário mensal",
+        TipoLancamento.RECEITA,
+        LocalDate.of(2026, 8, 5),
+        new BigDecimal("8500.00"),
+        List.of(3L));
+  }
+
+  @Test
+  void deveDevolver400ParaStatusDeletadoNoPostENoPut() throws Exception {
+    String deletado = CORPO.replace("\"categoriaIds\"", "\"status\":\"DELETADO\",\"categoriaIds\"");
+
+    mvc.perform(json(post("/api/lancamentos"), deletado))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.erros[0].campo").value("status"))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Informe o status ATIVO ou INATIVO"));
+    mvc.perform(json(put("/api/lancamentos/1"), deletado))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("status"));
+    verifyNoInteractions(service);
   }
 
   @Test
@@ -375,7 +425,7 @@ class LancamentoResourceTest {
 
   @Test
   void deveDevolver422ParaCategoriaInativa() throws Exception {
-    when(service.criar(eq(USUARIO), any()))
+    when(service.criar(eq(USUARIO), any(), any()))
         .thenThrow(
             new RegraNegocioException("A categoria \"X\" está inativa e não pode ser usada"));
 
@@ -386,7 +436,8 @@ class LancamentoResourceTest {
 
   @Test
   void deveEditar() throws Exception {
-    when(service.editar(eq(USUARIO), eq(1L), any())).thenReturn(resumo(StatusLancamento.ATIVO));
+    when(service.editar(eq(USUARIO), eq(1L), any(), any()))
+        .thenReturn(resumo(StatusLancamento.ATIVO));
 
     mvc.perform(json(put("/api/lancamentos/1"), CORPO))
         .andExpect(status().isOk())
@@ -395,7 +446,7 @@ class LancamentoResourceTest {
 
   @Test
   void deveDevolver422AoEditarDeletado() throws Exception {
-    when(service.editar(eq(USUARIO), eq(1L), any()))
+    when(service.editar(eq(USUARIO), eq(1L), any(), any()))
         .thenThrow(new RegraNegocioException("Lançamento excluído não pode ser editado."));
 
     mvc.perform(json(put("/api/lancamentos/1"), CORPO)).andExpect(status().isUnprocessableEntity());
