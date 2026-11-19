@@ -13,6 +13,7 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 
 - **Fonte da verdade:** este `CLAUDE.md`. Os `.md` do DVP em `../Documentação/md/` são uma versão anterior; se divergirem, vale este arquivo.
 - **18/11/2026:** RN001 revista (lançamento com data completa; auditoria com hora). Ver entrega 15 do "Plano de entregas".
+- **19/11/2026:** RN006 revista (`status` no POST/PUT; restaurar volta ao status anterior). Ver entrega 19 do "Plano de entregas".
 - **Escopo atual do backend: concluído.** Não há deploy: a apresentação e a entrega mostram o sistema **rodando localmente**
   (`docker compose up -d --build`; ver "Demonstração local" no README). Próximo passo do projeto: o front (design novo + telas).
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
@@ -130,7 +131,16 @@ Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.
   (`extract(month)`); mês fora de 1–12 ou ano fora de 2000–2100 → lista vazia (como antes). O dashboard agrupa por `Periodo.de(data)`.
 - **Auditoria com hora:** `dataCadastro` (`@PrePersist`), `dataAtualizacao` (toda edição/troca de status) e `dataExclusao` são
   `OffsetDateTime` em UTC, truncados em segundos. `dataExclusao` é gravada ao ir para DELETADO e volta a `null` ao restaurar
-  (`Lancamento.alterarStatus`).
+  (`Lancamento.alterarStatus` / `Lancamento.restaurar`).
+- **Status anterior (RN006 revista em 19/11/2026):** ao ir para DELETADO, `Lancamento.statusAnterior` (coluna `status_anterior`)
+  guarda o status que ele tinha (ATIVO/INATIVO); `Lancamento.restaurar()` volta a ele e limpa o campo. Nulo (item excluído antes
+  da V3) → volta como INATIVO. `podeIrPara` aceita DELETADO→ATIVO/INATIVO, mas `alterarStatus` recusa sair da lixeira: só o
+  `restaurar()` faz isso (o `PATCH /status` num DELETADO → `422` "Não é possível alterar o status de DELETADO para X").
+- **`status` no POST/PUT:** opcional (`LancamentoRequest.status`, `@StatusAtivoOuInativo`). POST sem ele = ATIVO; PUT sem ele
+  = mantém o atual; com o mesmo status que já tem, só os dados mudam. `DELETADO` → `400` "Dados inválidos" com
+  `erros[{campo: "status", mensagem: "Informe o status ATIVO ou INATIVO"}]` (o service também recusa com `422`, por defesa).
+  `LancamentoService.criar/editar` recebem o status à parte; o `NovoLancamento` e a `LancamentoFacade` não mudaram (a importação
+  continua criando ATIVO).
 - `LancamentoValidator.validar(NovoLancamento)` devolve os dados **normalizados**: descrição com `strip()`, valor `setScale(2, HALF_UP)`
   (arredondado ≤ 0 → 422; máximo `99999999999999.99`, limite do `numeric(16,2)`), `categoriaIds` sem nulos e sem repetidos (ordem preservada).
   Mensagens (422): "A descrição é obrigatória", "A descrição deve ter no máximo 100 caracteres", "O tipo é obrigatório (RECEITA ou DESPESA)",
@@ -201,7 +211,9 @@ DDL em `src/main/resources/db/migration` (Flyway): é a fonte da verdade; o Hibe
 O `V1__schema_inicial.sql` veio do DDL oficial (`../Banco de Dados/poupamais_modelo_fisico.sql`). O `V2__lancamento_data_completa.sql`
 (18/11/2026) troca `mes`/`ano` por `data date` (lançamentos antigos ficam no dia 1 do mês: `make_date(ano, mes, 1)`), troca o índice
 `lancamento_dashboard_idx` para `(id_usuario, data, status)`, passa a auditoria do lançamento para `timestamptz` (valores antigos =
-meia-noite de Brasília) e cria `data_exclusao timestamptz`.
+meia-noite de Brasília) e cria `data_exclusao timestamptz`. O `V3__lancamento_status_anterior.sql` (19/11/2026) cria
+`status_anterior varchar(20) NULL` (CHECK `ATIVO`/`INATIVO`, e só preenchido com `status = 'DELETADO'`); itens que já estavam na
+lixeira ficam com `NULL` e voltam como INATIVO.
 
 - Mudança de banco = **nova migração** `V<n>__descricao.sql`. **Nunca editar migração já aplicada**; só adicionar.
 - `spring.flyway`: schema `poupamais` criado e gerenciado pelo Flyway, histórico em `poupamais.flyway_schema_history`.
@@ -234,7 +246,7 @@ meia-noite de Brasília) e cria `data_exclusao timestamptz`.
 | RN003 | dashboard | Só lançamentos **ATIVOS** cuja data cai no mês/ano (padrão = mês atual). Saldo = Receitas − Despesas. Taxa = Despesas / Receitas × 100; se Receitas = 0 → `null` (não disponível). |
 | RN004 | lancamento / dashboard | Três status. **ATIVO**: entra no dashboard. **INATIVO**: aparece na listagem, mas não entra no dashboard. **DELETADO**: exclusão lógica (lixeira); não aparece na listagem padrão nem no dashboard, só com o filtro `status=DELETADO`. Nada é apagado fisicamente. |
 | RN005 | todos | Usuário só vê/edita/inativa/exporta/exclui **o que é dele**. |
-| RN006 | lancamento | ATIVO/INATIVO: editáveis em qualquer mês e alternam livremente. DELETADO: **não pode ser editado nem alternado**; só **restaurar**, que devolve como **INATIVO**. Transições válidas: ATIVO⇄INATIVO, ATIVO/INATIVO→DELETADO, DELETADO→INATIVO. O "Desfazer" da exclusão é feito no front (a chamada só é enviada quando o toast fecha). |
+| RN006 | lancamento | ATIVO/INATIVO: editáveis em qualquer mês e alternam livremente; o status pode ir **junto** no POST/PUT (sem PATCH depois). DELETADO: **não pode ser editado nem alternado**; só **restaurar**, que devolve ao **status que tinha antes da exclusão** (ATIVO ou INATIVO; itens excluídos antes de 19/11/2026, sem esse registro, voltam como INATIVO). Transições válidas: ATIVO⇄INATIVO, ATIVO/INATIVO→DELETADO, DELETADO→ATIVO/INATIVO (só pelo restaurar). O "Desfazer" da exclusão (revisto em 19/11/2026): o front manda o `DELETE` **na hora** e o "Desfazer" chama o `restaurar`. |
 | RN007 | arquivo | Importação parcial: salva as linhas válidas, ignora inválidas/em branco e devolve quais falharam e por quê. Nunca recusa o arquivo inteiro. |
 | RN008 | dashboard | "Receitas vs Despesas" e "Saldo Mensal": 4 meses terminando no selecionado (`Periodo.ultimos(4)`), agrupando pelo mês da data. "Maiores Despesas": top 5 despesas ativas do mês, com categorias. |
 | RN009 | dashboard | "Despesas por Categoria": só despesas ativas do mês. N categorias → valor dividido igualmente; **centavos de diferença vão para a primeira** (= menor `id_categoria`). Soma das fatias = total de despesas. |
@@ -397,14 +409,21 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
     de lançamento abaixo; `total` = quantos lançamentos o filtro encontra; sem resultado: `total: 0`, `totalPaginas: 0`).
   - A **exportação** (`/exportar`) e os usos internos (`LancamentoFacade.listar`, dashboard, LGPD) **não paginam**: trazem tudo.
 - `GET /api/lancamentos/{id}`
-- `POST /api/lancamentos` `{descricao, tipo, data, valor, categoriaIds: [..]}` → `201`. `data` em ISO `"AAAA-MM-DD"` (o front mostra
+- `POST /api/lancamentos` `{descricao, tipo, data, valor, categoriaIds: [..], status?}` → `201`. `status` opcional: `"ATIVO"` ou
+  `"INATIVO"` (ausente/`null` = ATIVO), gravado na mesma chamada; `"DELETADO"` → `400` "Dados inválidos" com
+  `erros[{campo: "status", mensagem: "Informe o status ATIVO ou INATIVO"}]`; valor fora do enum → `400` "Não foi possível ler os
+  dados enviados. Confira o formato." (como o `tipo`). `data` em ISO `"AAAA-MM-DD"` (o front mostra
   dd/mm/aaaa). Data ausente → `400` "A data é obrigatória"; dia que não existe ou formato errado (`"2026-02-31"`, `"05/11/2026"`) → `400`
   "Dados inválidos" com `erros[{campo: "data", mensagem: "Data inválida. Use o formato AAAA-MM-DD com um dia que exista."}]`;
   fora de 01/01/2000–31/12/2100 → `422` "A data deve estar entre 01/01/2000 e 31/12/2100".
-- `PUT /api/lancamentos/{id}` (mesmo body) → atualiza e seta `dataAtualizacao` · se DELETADO → `422`
+- `PUT /api/lancamentos/{id}` (mesmo body) → atualiza e seta `dataAtualizacao` · `status` ausente/`null` = mantém o atual;
+  `ATIVO`/`INATIVO` = troca junto; `DELETADO` → `400` (igual ao POST) · lançamento na lixeira → `422` "Lançamento excluído não pode
+  ser editado. Restaure-o antes." (mesmo com `status` no corpo)
 - `PATCH /api/lancamentos/{id}/status` `{status: "ATIVO"|"INATIVO"}` → atualiza `dataAtualizacao` · se DELETADO → `422`
-- `DELETE /api/lancamentos/{id}` → `204`; **não apaga**: muda o status para DELETADO e grava `dataExclusao`
-- `POST /api/lancamentos/{id}/restaurar` → `200` (lançamento com status INATIVO e `dataExclusao: null`) · se não estiver DELETADO → `422`
+- `DELETE /api/lancamentos/{id}` → `204`; **não apaga**: muda o status para DELETADO, grava `dataExclusao` e guarda o status que
+  tinha (ATIVO/INATIVO)
+- `POST /api/lancamentos/{id}/restaurar` → `200` (lançamento de volta ao status de antes do `DELETE` e `dataExclusao: null`; sem
+  esse registro, INATIVO) · se não estiver DELETADO → `422` "Só é possível restaurar um lançamento excluído". É o "Desfazer" do front.
 - `POST`/`PUT`/`PATCH`/`restaurar` devolvem o lançamento no formato abaixo. `categoriaIds` repetidos são aceitos e gravados uma vez;
   categoria inativa → `422`; inexistente ou de outro usuário → `404` (vem do `validarAtivasDoUsuario`).
 - `DELETE` de lançamento já DELETADO → `422`. Toda alteração (PUT, status, delete, restaurar) seta `dataAtualizacao = agora` (com hora).
@@ -608,6 +627,7 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 16 | `pesoMaioresDespesas` no dashboard (Q4) | ✅ branch `feat/peso-maiores-despesas` (também incluída na 15), aguardando PR | Soma das 5 maiores e % sobre as despesas do mês (2 casas, `HALF_UP`; `null` sem despesa) |
 | 17 | Paginação do `GET /lancamentos` (Q3) | ✅ branch `feat/paginacao-lancamentos` (sobre a 15), aguardando PR | `pagina`/`tamanho` (padrão 12, máx. 100); `{itens,pagina,tamanho,total,totalPaginas}`; exportação e Facade sem paginar. Pendência: `pagina=abc`/`mes=abc` dão 400 com mensagem do Spring em inglês |
 | 18 | `quantidadeLancamentos` em `GET /categorias?mes&ano` (Q2) | ✅ branch `feat/categoria-quantidade-lancamentos` (sobre a 17), aguardando PR | Query nativa agregada no `CategoriaRepository` (evita ciclo categoria→lancamento). Pendência: validação de `mes`/`ano` repetida em `CategoriaListagemParams` e `DashboardParams` (juntar num `PeriodoParams` em `shared`) |
+| 19 | `status` no POST/PUT de lançamento + restaurar ao status anterior (RN006 revista em 19/11/2026) | ✅ branch `feat/status-no-lancamento`, aguardando PR | `status` opcional (ATIVO/INATIVO; DELETADO → 400) no `LancamentoRequest`; `V3__lancamento_status_anterior.sql`; `Lancamento.restaurar()`; o `PATCH /status` não tira mais da lixeira (antes, `INATIVO` num DELETADO restaurava); Swagger e coleções. Front: criar/editar com `status` numa chamada e "Desfazer" = `DELETE` imediato + `restaurar`; espelhar o contrato no `CLAUDE.md` do front |
 | 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ na branch `chore/fechamento-backend`, aguardando PR | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
