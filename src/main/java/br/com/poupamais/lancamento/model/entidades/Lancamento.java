@@ -78,6 +78,14 @@ public class Lancamento {
   @Column(name = "data_exclusao")
   private OffsetDateTime dataExclusao;
 
+  /**
+   * Status (ATIVO/INATIVO) que tinha ao ir para a lixeira; o restaurar volta a ele. {@code null}
+   * fora da lixeira e nos itens excluídos antes da V3 (esses voltam como INATIVO).
+   */
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status_anterior", length = 20)
+  private StatusLancamento statusAnterior;
+
   @Builder.Default
   @Setter(lombok.AccessLevel.NONE)
   @OneToMany(mappedBy = "lancamento", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -92,19 +100,46 @@ public class Lancamento {
 
   /**
    * Máquina de estados da RN006: valida a transição em {@link StatusLancamento#podeIrPara} e marca
-   * a data de atualização. Ir para DELETADO grava {@code dataExclusao}; sair dele (restaurar)
-   * limpa.
+   * a data de atualização. Ir para DELETADO grava {@code dataExclusao} e o status anterior. Sair da
+   * lixeira só pelo {@link #restaurar()}.
    *
    * @throws RegraNegocioException (422) se a transição não for permitida
    */
   public void alterarStatus(StatusLancamento novo) {
-    if (status == null || !status.podeIrPara(novo)) {
-      throw new RegraNegocioException(
-          MSG_TRANSICAO_INVALIDA.formatted(nomeStatus(status), nomeStatus(novo)));
+    if (status == StatusLancamento.DELETADO) {
+      throw transicaoInvalida(novo);
     }
+    mudarPara(novo);
+  }
+
+  /**
+   * DELETADO → status que tinha antes da lixeira (ATIVO/INATIVO); sem registro (excluído antes da
+   * V3), INATIVO. Limpa {@code dataExclusao} e o status anterior.
+   *
+   * @throws RegraNegocioException (422) se não estiver na lixeira
+   */
+  public void restaurar() {
+    StatusLancamento destino = statusAnterior == null ? StatusLancamento.INATIVO : statusAnterior;
+    if (status != StatusLancamento.DELETADO) {
+      throw transicaoInvalida(destino);
+    }
+    mudarPara(destino);
+  }
+
+  private void mudarPara(StatusLancamento novo) {
+    if (status == null || !status.podeIrPara(novo)) {
+      throw transicaoInvalida(novo);
+    }
+    boolean excluindo = novo == StatusLancamento.DELETADO;
+    statusAnterior = excluindo ? status : null;
     status = novo;
-    dataExclusao = novo == StatusLancamento.DELETADO ? agora() : null;
+    dataExclusao = excluindo ? agora() : null;
     marcarAtualizacao();
+  }
+
+  private RegraNegocioException transicaoInvalida(StatusLancamento novo) {
+    return new RegraNegocioException(
+        MSG_TRANSICAO_INVALIDA.formatted(nomeStatus(status), nomeStatus(novo)));
   }
 
   /** Troca as categorias vinculadas pelas informadas (repetidas contam uma vez). */

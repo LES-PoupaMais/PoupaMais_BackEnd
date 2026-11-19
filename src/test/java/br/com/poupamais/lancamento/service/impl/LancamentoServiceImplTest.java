@@ -191,7 +191,7 @@ class LancamentoServiceImplTest {
     assertThatThrownBy(() -> service.buscar(USUARIO, 10L))
         .isInstanceOf(RecursoNaoEncontradoException.class)
         .hasMessage("Lançamento não encontrado");
-    assertThatThrownBy(() -> service.editar(USUARIO, 10L, novo(List.of(1L))))
+    assertThatThrownBy(() -> service.editar(USUARIO, 10L, novo(List.of(1L)), null))
         .isInstanceOf(RecursoNaoEncontradoException.class);
     assertThatThrownBy(() -> service.alterarStatus(USUARIO, 10L, StatusLancamento.INATIVO))
         .isInstanceOf(RecursoNaoEncontradoException.class);
@@ -210,7 +210,7 @@ class LancamentoServiceImplTest {
     salvarDevolveOMesmo();
     categoriasExistem(new CategoriaResumo(2L, "B", false), new CategoriaResumo(3L, "C", true));
 
-    LancamentoResumo editado = service.editar(USUARIO, 10L, novo(List.of(2L, 3L)));
+    LancamentoResumo editado = service.editar(USUARIO, 10L, novo(List.of(2L, 3L)), null);
 
     assertThat(editado.descricao()).isEqualTo("Aluguel");
     assertThat(editado.tipo()).isEqualTo(TipoLancamento.DESPESA);
@@ -226,7 +226,70 @@ class LancamentoServiceImplTest {
   void naoDeveEditarDeletado() {
     encontra(existente(StatusLancamento.DELETADO, 1L));
 
-    assertThatThrownBy(() -> service.editar(USUARIO, 10L, novo(List.of(1L))))
+    assertThatThrownBy(() -> service.editar(USUARIO, 10L, novo(List.of(1L)), null))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Lançamento excluído não pode ser editado. Restaure-o antes.");
+    verify(repository, never()).saveAndFlush(any());
+  }
+
+  @Test
+  void deveCriarJaComOStatusPedido() {
+    salvarDevolveOMesmo();
+    categoriasExistem(new CategoriaResumo(1L, "A", true));
+
+    LancamentoResumo inativo = service.criar(USUARIO, novo(List.of(1L)), StatusLancamento.INATIVO);
+    LancamentoResumo semStatus = service.criar(USUARIO, novo(List.of(1L)), null);
+
+    assertThat(inativo.status()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(inativo.dataAtualizacao()).isNull();
+    assertThat(semStatus.status()).isEqualTo(StatusLancamento.ATIVO);
+  }
+
+  @Test
+  void deveRecusarStatusDeletadoNoCadastroENaEdicao() {
+    assertThatThrownBy(() -> service.criar(USUARIO, novo(List.of(1L)), StatusLancamento.DELETADO))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Informe o status ATIVO ou INATIVO");
+    assertThatThrownBy(
+            () -> service.editar(USUARIO, 10L, novo(List.of(1L)), StatusLancamento.DELETADO))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Informe o status ATIVO ou INATIVO");
+    verifyNoInteractions(repository);
+  }
+
+  @Test
+  void deveEditarTrocandoOStatus() {
+    Lancamento l = existente(StatusLancamento.ATIVO, 1L);
+    encontra(l);
+    salvarDevolveOMesmo();
+    categoriasExistem(new CategoriaResumo(1L, "A", true));
+
+    LancamentoResumo editado =
+        service.editar(USUARIO, 10L, novo(List.of(1L)), StatusLancamento.INATIVO);
+
+    assertThat(editado.status()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(editado.dataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+  }
+
+  @Test
+  void deveEditarMantendoOStatusQuandoNaoVemOuEOMesmo() {
+    Lancamento l = existente(StatusLancamento.INATIVO, 1L);
+    encontra(l);
+    salvarDevolveOMesmo();
+    categoriasExistem(new CategoriaResumo(1L, "A", true));
+
+    assertThat(service.editar(USUARIO, 10L, novo(List.of(1L)), null).status())
+        .isEqualTo(StatusLancamento.INATIVO);
+    assertThat(service.editar(USUARIO, 10L, novo(List.of(1L)), StatusLancamento.INATIVO).status())
+        .isEqualTo(StatusLancamento.INATIVO);
+  }
+
+  @Test
+  void naoDeveEditarDeletadoMesmoComStatus() {
+    encontra(existente(StatusLancamento.DELETADO, 1L));
+
+    assertThatThrownBy(
+            () -> service.editar(USUARIO, 10L, novo(List.of(1L)), StatusLancamento.ATIVO))
         .isInstanceOf(RegraNegocioException.class)
         .hasMessage("Lançamento excluído não pode ser editado. Restaure-o antes.");
     verify(repository, never()).saveAndFlush(any());
@@ -271,6 +334,18 @@ class LancamentoServiceImplTest {
   }
 
   @Test
+  void patchNaoTiraDaLixeira() {
+    Lancamento l = existente(StatusLancamento.DELETADO, 1L);
+    encontra(l);
+
+    assertThatThrownBy(() -> service.alterarStatus(USUARIO, 10L, StatusLancamento.INATIVO))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Não é possível alterar o status de DELETADO para INATIVO");
+    assertThat(l.getStatus()).isEqualTo(StatusLancamento.DELETADO);
+    verify(repository, never()).save(any());
+  }
+
+  @Test
   void deveRecusarStatusDeletadoOuNuloNoPatch() {
     assertThatThrownBy(() -> service.alterarStatus(USUARIO, 10L, StatusLancamento.DELETADO))
         .isInstanceOf(RegraNegocioException.class)
@@ -306,7 +381,7 @@ class LancamentoServiceImplTest {
   }
 
   @Test
-  void deveRestaurarComoInativo() {
+  void deveRestaurarComoInativoQuemNaoTemStatusAnterior() {
     Lancamento l = existente(StatusLancamento.DELETADO, 1L);
     l.setDataExclusao(OffsetDateTime.of(2025, 2, 1, 12, 0, 0, 0, ZoneOffset.UTC));
     encontra(l);
@@ -318,6 +393,20 @@ class LancamentoServiceImplTest {
     assertThat(resumo.status()).isEqualTo(StatusLancamento.INATIVO);
     assertThat(resumo.dataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
     assertThat(resumo.dataExclusao()).isNull();
+  }
+
+  @Test
+  void deveRestaurarAoStatusQueTinhaAntesDaLixeira() {
+    Lancamento l = existente(StatusLancamento.ATIVO, 1L);
+    encontra(l);
+    when(repository.save(l)).thenReturn(l);
+    categoriasExistem();
+    service.excluir(USUARIO, 10L);
+
+    LancamentoResumo resumo = service.restaurar(USUARIO, 10L);
+
+    assertThat(resumo.status()).isEqualTo(StatusLancamento.ATIVO);
+    assertThat(l.getStatusAnterior()).isNull();
   }
 
   @Test

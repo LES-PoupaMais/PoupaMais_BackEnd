@@ -51,20 +51,72 @@ class LancamentoTest {
     assertThat(lancamento.getDataExclusao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
     assertThat(lancamento.getDataAtualizacao()).isEqualTo(lancamento.getDataExclusao());
 
-    lancamento.alterarStatus(StatusLancamento.INATIVO);
+    lancamento.restaurar();
 
-    assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.ATIVO);
     assertThat(lancamento.getDataExclusao()).isNull();
+  }
+
+  @Test
+  void deveGuardarOStatusAnteriorAoIrParaALixeira() {
+    Lancamento ativo = comStatus(StatusLancamento.ATIVO);
+    Lancamento inativo = comStatus(StatusLancamento.INATIVO);
+
+    ativo.alterarStatus(StatusLancamento.DELETADO);
+    inativo.alterarStatus(StatusLancamento.DELETADO);
+
+    assertThat(ativo.getStatusAnterior()).isEqualTo(StatusLancamento.ATIVO);
+    assertThat(inativo.getStatusAnterior()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(comStatus(StatusLancamento.ATIVO).getStatusAnterior()).isNull();
+  }
+
+  @Test
+  void deveRestaurarAoStatusAnteriorELimparORegistro() {
+    Lancamento inativo = comStatus(StatusLancamento.INATIVO);
+    inativo.alterarStatus(StatusLancamento.DELETADO);
+
+    inativo.restaurar();
+
+    assertThat(inativo.getStatus()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(inativo.getStatusAnterior()).isNull();
+    assertThat(inativo.getDataExclusao()).isNull();
+    assertThat(inativo.getDataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+  }
+
+  @Test
+  void deveRestaurarComoInativoQuemFoiExcluidoSemStatusAnterior() {
+    Lancamento legado = comStatus(StatusLancamento.DELETADO);
+
+    legado.restaurar();
+
+    assertThat(legado.getStatus()).isEqualTo(StatusLancamento.INATIVO);
+  }
+
+  @Test
+  void naoDeveRestaurarQuemNaoEstaNaLixeira() {
+    Lancamento lancamento = comStatus(StatusLancamento.ATIVO);
+
+    assertThatThrownBy(lancamento::restaurar)
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Não é possível alterar o status de ATIVO para INATIVO");
+    assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.ATIVO);
+    assertThat(lancamento.getDataAtualizacao()).isNull();
   }
 
   @Test
   void deveRecusarTransicaoInvalidaSemAlterarNada() {
     Lancamento lancamento = comStatus(StatusLancamento.DELETADO);
+    lancamento.setStatusAnterior(StatusLancamento.ATIVO);
 
+    // Da lixeira só se sai pelo restaurar
     assertThatThrownBy(() -> lancamento.alterarStatus(StatusLancamento.ATIVO))
         .isInstanceOf(RegraNegocioException.class)
         .hasMessage("Não é possível alterar o status de DELETADO para ATIVO");
+    assertThatThrownBy(() -> lancamento.alterarStatus(StatusLancamento.INATIVO))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Não é possível alterar o status de DELETADO para INATIVO");
     assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.DELETADO);
+    assertThat(lancamento.getStatusAnterior()).isEqualTo(StatusLancamento.ATIVO);
     assertThat(lancamento.getDataAtualizacao()).isNull();
   }
 

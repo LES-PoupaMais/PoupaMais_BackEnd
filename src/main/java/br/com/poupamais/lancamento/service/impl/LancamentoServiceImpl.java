@@ -76,15 +76,28 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
   @Override
   @Transactional
   public LancamentoResumo criar(Long idUsuario, NovoLancamento novo) {
+    return criar(idUsuario, novo, null);
+  }
+
+  @Override
+  @Transactional
+  public LancamentoResumo criar(Long idUsuario, NovoLancamento novo, StatusLancamento status) {
+    validarStatusDoCorpo(status);
     NovoLancamento dados = validarNovo(idUsuario, novo);
-    Lancamento lancamento = Lancamento.builder().idUsuario(idUsuario).build();
+    Lancamento lancamento =
+        Lancamento.builder()
+            .idUsuario(idUsuario)
+            .status(status == null ? StatusLancamento.ATIVO : status)
+            .build();
     preencher(lancamento, dados);
     return conversor.converter(repository.saveAndFlush(lancamento));
   }
 
   @Override
   @Transactional
-  public LancamentoResumo editar(Long idUsuario, Long id, NovoLancamento novo) {
+  public LancamentoResumo editar(
+      Long idUsuario, Long id, NovoLancamento novo, StatusLancamento status) {
+    validarStatusDoCorpo(status);
     Lancamento lancamento = buscarDoUsuario(idUsuario, id);
     if (lancamento.getStatus() == StatusLancamento.DELETADO) {
       throw new RegraNegocioException(MSG_DELETADO_NAO_EDITA);
@@ -96,6 +109,9 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
         dados.categoriaIds().stream().filter(c -> !lancamento.idsCategorias().contains(c)).toList();
     categoriaFacade.validarAtivasDoUsuario(idUsuario, novas);
     preencher(lancamento, dados);
+    if (status != null && status != lancamento.getStatus()) {
+      lancamento.alterarStatus(status);
+    }
     lancamento.marcarAtualizacao();
     return conversor.converter(repository.saveAndFlush(lancamento));
   }
@@ -103,9 +119,10 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
   @Override
   @Transactional
   public LancamentoResumo alterarStatus(Long idUsuario, Long id, StatusLancamento status) {
-    if (status != StatusLancamento.ATIVO && status != StatusLancamento.INATIVO) {
+    if (status == null) {
       throw new RegraNegocioException(MSG_STATUS_INVALIDO);
     }
+    validarStatusDoCorpo(status);
     Lancamento lancamento = buscarDoUsuario(idUsuario, id);
     // Pedir o status que já está é aceito sem mudar nada (idempotente)
     if (lancamento.getStatus() != status) {
@@ -133,7 +150,7 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
     if (lancamento.getStatus() != StatusLancamento.DELETADO) {
       throw new RegraNegocioException(MSG_NAO_EXCLUIDO);
     }
-    lancamento.alterarStatus(StatusLancamento.INATIVO);
+    lancamento.restaurar();
     return conversor.converter(repository.save(lancamento));
   }
 
@@ -189,6 +206,15 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
     return repository
         .findByIdAndIdUsuario(id, idUsuario)
         .orElseThrow(() -> new RecursoNaoEncontradoException(MSG_NAO_ENCONTRADO));
+  }
+
+  /**
+   * Pelo corpo só vão ATIVO ou INATIVO; a lixeira é pelo DELETE (na API o DTO já barra com 400).
+   */
+  private static void validarStatusDoCorpo(StatusLancamento status) {
+    if (status == StatusLancamento.DELETADO) {
+      throw new RegraNegocioException(MSG_STATUS_INVALIDO);
+    }
   }
 
   /** RN001 + categorias existentes, do usuário e ativas (404/422 vêm da CategoriaFacade). */

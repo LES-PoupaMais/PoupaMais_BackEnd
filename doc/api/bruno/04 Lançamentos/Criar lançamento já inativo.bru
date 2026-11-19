@@ -1,0 +1,32 @@
+meta {
+  name: Criar lançamento já inativo
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/lancamentos
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "descricao": "Supermercado",
+    "tipo": "DESPESA",
+    "data": "{{data}}",
+    "valor": 680.00,
+    "status": "INATIVO",
+    "categoriaIds": [{{categoriaId}}]
+  }
+}
+
+tests {
+  test("Status esperado (201)", function () {
+    expect([201]).to.include(res.status);
+  });
+}
+
+docs {
+  `status` opcional no corpo: `ATIVO` ou `INATIVO` (ausente = `ATIVO`), gravado na mesma chamada (sem PATCH depois).
+}

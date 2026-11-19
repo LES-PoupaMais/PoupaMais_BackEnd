@@ -894,6 +894,96 @@
           ]
         },
         {
+          "name": "Criar lançamento já inativo",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/lancamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "lancamentos"
+              ]
+            },
+            "description": "`status` opcional no corpo: `ATIVO` ou `INATIVO` (ausente = `ATIVO`), gravado na mesma chamada (sem PATCH depois).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Supermercado\",\n  \"tipo\": \"DESPESA\",\n  \"data\": \"{{data}}\",\n  \"valor\": 680.00,\n  \"status\": \"INATIVO\",\n  \"categoriaIds\": [{{categoriaId}}]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status esperado (201)\", function () {",
+                  "  pm.expect([201]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Criar lançamento com status DELETADO (espera 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/lancamentos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "lancamentos"
+              ]
+            },
+            "description": "`DELETADO` não vai no corpo (a lixeira é pelo DELETE): **400** com erro no campo `status`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"descricao\": \"Supermercado\",\n  \"tipo\": \"DESPESA\",\n  \"data\": \"{{data}}\",\n  \"valor\": 680.00,\n  \"status\": \"DELETADO\",\n  \"categoriaIds\": [{{categoriaId}}]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status esperado (400)\", function () {",
+                  "  pm.expect([400]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Excluir categoria em uso (espera 422)",
           "request": {
             "method": "DELETE",
@@ -1049,6 +1139,7 @@
                 "{{lancamentoId}}"
               ]
             },
+            "description": "`status` opcional (`ATIVO` ou `INATIVO`); ausente = mantém o atual. Na lixeira → **422**.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"descricao\": \"Supermercado do mês\",\n  \"tipo\": \"DESPESA\",\n  \"data\": \"{{data}}\",\n  \"valor\": 720.50,\n  \"categoriaIds\": [{{categoriaId}}]\n}",
@@ -1181,7 +1272,7 @@
                 "{{lancamentoId}}"
               ]
             },
-            "description": "Exclusão lógica: o status vira DELETADO."
+            "description": "Exclusão lógica: o status vira DELETADO e o status anterior (ATIVO/INATIVO) fica guardado."
           },
           "event": [
             {
@@ -1251,7 +1342,7 @@
                 "restaurar"
               ]
             },
-            "description": "Volta como INATIVO."
+            "description": "Volta ao status que tinha antes do DELETE (aqui, ATIVO). Excluídos antes dessa regra voltam como INATIVO."
           },
           "event": [
             {

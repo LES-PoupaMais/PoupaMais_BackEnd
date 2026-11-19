@@ -21,9 +21,17 @@ public interface LancamentoService {
 
   LancamentoResumo buscar(Long idUsuario, Long id);
 
-  LancamentoResumo criar(Long idUsuario, NovoLancamento novo);
+  /**
+   * Cadastra já com o status pedido (ATIVO/INATIVO), numa chamada só; {@code null} = ATIVO.
+   * DELETADO → 422.
+   */
+  LancamentoResumo criar(Long idUsuario, NovoLancamento novo, StatusLancamento status);
 
-  LancamentoResumo editar(Long idUsuario, Long id, NovoLancamento dados);
+  /**
+   * Edita os dados e, se {@code status} vier (ATIVO/INATIVO), troca o status junto; {@code null}
+   * mantém o atual. Lançamento na lixeira → 422. DELETADO → 422.
+   */
+  LancamentoResumo editar(Long idUsuario, Long id, NovoLancamento dados, StatusLancamento status);
 
   /** Alterna entre ATIVO e INATIVO. Para excluir/restaurar use os métodos próprios. */
   LancamentoResumo alterarStatus(Long idUsuario, Long id, StatusLancamento status);
@@ -31,6 +39,6 @@ public interface LancamentoService {
   /** Exclusão lógica: status DELETADO (RN004). */
   void excluir(Long idUsuario, Long id);
 
-  /** DELETADO → INATIVO (RN006). */
+  /** DELETADO → status que tinha antes da lixeira; sem registro, INATIVO (RN006). */
   LancamentoResumo restaurar(Long idUsuario, Long id);
 }
