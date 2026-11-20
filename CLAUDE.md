@@ -268,7 +268,9 @@ Fora de escopo (requisitos inversos): app nativo (RNI001), integração bancári
 - O id do usuário vem **sempre do token JWT**, via `UsuarioLogado.id()`, nunca do body ou da query.
 - Todo repository de dado do usuário filtra por dono: `findByIdAndIdUsuario(...)` e Specifications sempre com `doUsuario(id)`.
   Recurso de outro usuário → **404** (não revelar que existe).
-- Rotas públicas: `POST /api/auth/cadastro`, `/login`, `/recuperar-senha`, `/redefinir-senha` e Swagger em dev. Todo o resto exige autenticação.
+- Rotas públicas: `POST /api/auth/cadastro`, `/login`, `/recuperar-senha`, `/redefinir-senha`, `GET /actuator/health` e Swagger em dev. Todo o resto exige autenticação.
+- **Actuator:** só o `health` é exposto (`management.endpoints.web.exposure.include=health`, página `/actuator` desligada), sem
+  detalhes para ninguém (`show-details`/`show-components: never`). Qualquer outro `/actuator/**` exige token e responde `404`.
 - Proteção de dados (RNF019): nunca logar senha, token ou valor financeiro; mensagens de erro sem detalhes internos.
 - RNF006: **não** existe detecção de lançamento duplicado (dados iguais são válidos). A única proteção é contra reenvio técnico, feita no front.
 - Senha: BCrypt, mínimo 6 caracteres (regra do protótipo). Nunca retornar `senha` em DTO.
@@ -288,6 +290,12 @@ Prefixo `/api`. JSON em camelCase. Header `Authorization: Bearer <token>`.
 
 **Coleções Bruno/Postman** com todos os endpoints: `doc/api/` (ver `doc/api/README.md`). **Todo endpoint novo entra nas duas
 coleções por padrão**, no mesmo PR (ver "Convenções"); o `ColecaoApiTest` reprova o build se faltar algum.
+
+**Saúde** (actuator, fora do `/api`)
+
+- `GET /actuator/health` **público** (sem token) → `200` `{"status":"UP"}` · banco fora do ar → `503` `{"status":"DOWN"}`. Sem detalhes
+  nem componentes. O e-mail não entra na conta (`management.health.mail.enabled=false`: falha de envio é tolerada, RN014). É o que o
+  `HEALTHCHECK` do `Dockerfile` consulta (`wget` do BusyBox da imagem). Não segue o `ErroResponse` (formato do actuator).
 
 **Auth / usuário** (módulo `usuario`)
 
@@ -328,7 +336,7 @@ Detalhes do `usuario` (decididos):
 - `GET /api/usuarios/me/dados` → arquivo `meus-dados-poupamais.json` (RF016, RN016; estrutura abaixo)
 - `POST /api/usuarios/me/excluir` `{senha}` → `204` (RF017) · senha errada → `422`. É POST porque DELETE com body não é confiável em proxies.
 
-Rotas públicas: `cadastro`, `login`, `recuperar-senha`, `redefinir-senha`.
+Rotas públicas: `cadastro`, `login`, `recuperar-senha`, `redefinir-senha` (e `GET /actuator/health`).
 
 Exportação de dados do titular (`GET /api/usuarios/me/dados`, decidido em `feat/exportacao-dados`):
 - `200` com `Content-Type: application/json` e `Content-Disposition: attachment; filename="meus-dados-poupamais.json"`; sem token → `401`.
@@ -506,7 +514,10 @@ Como funciona: os códigos ficam num lugar só, o enum `shared.exception.CodigoE
 exceção de negócio recebe o seu no construtor; os erros genéricos têm código padrão no `GlobalExceptionHandler`; o 401 do
 `ErroAutenticacaoEntryPoint` e o 403 do `ErroAcessoNegadoHandler` (Spring Security) e o `/error` do servlet (`ErroPadraoController`,
 para o que não passa pelo MVC: falha num filtro, recusa do servidor como 413) também saem no `ErroResponse` com `codigo`.
-`ErroResponse` recusa `codigo` nulo. A tabela também está no Swagger (descrição da API, gerada do enum). Nunca renomeie um código.
+`ErroResponse` recusa `codigo` nulo. **Todo erro sai em `application/json`, qualquer que seja o `Accept`** (`ErroResponse.comoResposta()`
+e o `resposta(...)` do handler fixam o `Content-Type`): um erro na exportação pedida com `Accept: text/csv` ou
+`application/octet-stream` sai com o status e o `codigo` dele (antes virava 406 vazio ou 500). O `406` fica só para a rota que deu certo
+mas produz um formato que o cliente não aceita. A tabela também está no Swagger (descrição da API, gerada do enum). Nunca renomeie um código.
 
 | Código | Status | Quando acontece |
 | --- | --- | --- |
@@ -524,7 +535,7 @@ para o que não passa pelo MVC: falha num filtro, recusa do servidor como 413) t
 | `LANCAMENTO_NAO_ENCONTRADO` | 404 | Lançamento inexistente ou de outro usuário |
 | `FOTO_NAO_ENCONTRADA` | 404 | `GET /usuarios/me/foto` sem foto |
 | `METODO_NAO_PERMITIDO` | 405 | Método HTTP não suportado na rota |
-| `TIPO_RESPOSTA_NAO_ACEITO` | 406 | `Accept` sem nenhum formato que a rota produz (ex.: `Accept: text/csv` num `GET` JSON). O corpo sai em JSON mesmo assim (`Content-Type: application/json` fixado no handler; sem isso o Spring responderia 406 vazio). Antes saía 500 |
+| `TIPO_RESPOSTA_NAO_ACEITO` | 406 | `Accept` sem nenhum formato que a rota produz (ex.: `Accept: text/csv` num `GET` JSON). O corpo sai em JSON mesmo assim (`Content-Type: application/json` fixado, como em todo erro). Erro de outro tipo com esse `Accept` (ex.: `404`, `422`) sai com o próprio código, não `406`. Antes saía 500 |
 | `EMAIL_JA_CADASTRADO` | 409 | Cadastro com e-mail que já existe |
 | `CATEGORIA_DUPLICADA` | 409 | `POST`/`PUT` de categoria com descrição que já existe (sem diferenciar maiúsculas) |
 | `TIPO_CONTEUDO_NAO_SUPORTADO` | 415 | `Content-Type` não aceito pela rota (ex.: `text/plain` num `POST` JSON). Antes da v1.2.0 saía 500 |
@@ -691,7 +702,8 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 18 | `quantidadeLancamentos` em `GET /categorias?mes&ano` (Q2) | ✅ branch `feat/categoria-quantidade-lancamentos` (sobre a 17), aguardando PR | Query nativa agregada no `CategoriaRepository` (evita ciclo categoria→lancamento). Pendência: validação de `mes`/`ano` repetida em `CategoriaListagemParams` e `DashboardParams` (juntar num `PeriodoParams` em `shared`) |
 | 19 | `status` no POST/PUT de lançamento + restaurar ao status anterior (RN006 revista em 19/11/2026; contrato v1.2.0) | ✅ branch `feat/status-no-lancamento`, aguardando PR | `status` opcional (ATIVO/INATIVO; DELETADO → 400) no `LancamentoRequest`; `V3__lancamento_status_anterior.sql`; `Lancamento.restaurar()`; o `PATCH /status` não tira mais da lixeira (antes, `INATIVO` num DELETADO restaurava); Swagger e coleções. Front: criar/editar com `status` numa chamada e "Desfazer" = `DELETE` imediato + `restaurar`; espelhar o contrato no `CLAUDE.md` do front |
 | 20 | Contrato v1.2.0 (junto da 19): `codigo` em toda resposta de erro + `data` em `maioresDespesas` | ✅ branch `feat/codigos-erro-e-data-maiores`, aguardando PR | Enum `CodigoErro` em `shared.exception` (tabela em "Padrão de erro" e no Swagger, com `info.version` 1.2.0); exceções com código no construtor; `GlobalExceptionHandler` com códigos padrão e novos 415 (antes caía no 500) e 403; `ErroAcessoNegadoHandler`, `ErroPadraoController` (`/error`, despacho de erro liberado na segurança); `MaiorDespesa.data` (ordem e peso iguais); `CodigoErroTest` reprova código sem teste; coleções testam o `codigo` dos casos de erro. Front: espelhar o contrato no `CLAUDE.md` do front (não feito nesta branch). Decidido (20/11/2026, líder): a recusa de CORS do Spring (`403` "Invalid CORS request", texto puro) fica como está, sem `ErroResponse` nem `codigo`, porque o navegador não chama a API (BFF). Parâmetro inválido/ausente e `406`: resolvidos na entrega 21 |
-| 21 | Erros do cliente que caíam no `500 ERRO_INTERNO` (contrato v1.2.0) | ✅ branch `fix/erros-400-com-codigo`, aguardando PR | `GlobalExceptionHandler`: `400 PARAMETRO_INVALIDO` (tipo errado em parâmetro de rota, query ou header), `400 PARAMETRO_AUSENTE` (parâmetro, part ou header obrigatório ausente) e `406 TIPO_RESPOSTA_NAO_ACEITO` (corpo em JSON com `Content-Type` fixado); tabela de códigos (aqui e no Swagger, gerada do enum); coleções com `Listar categorias com filtro inválido` (39 requisições). Front: espelhar os 3 códigos no `CLAUDE.md` do front. Pendência: os outros erros com um `Accept` que exclui JSON (ex.: `404` com `Accept: text/csv`) não conseguem escrever o `ErroResponse` e viram falha do servidor sem `codigo`; correção provável: fixar `application/json` em todas as respostas do `GlobalExceptionHandler` e do `ErroPadraoController` (só afeta cliente que pede um formato sem JSON) |
+| 21 | Erros do cliente que caíam no `500 ERRO_INTERNO` (contrato v1.2.0) | ✅ branch `fix/erros-400-com-codigo`, aguardando PR | `GlobalExceptionHandler`: `400 PARAMETRO_INVALIDO` (tipo errado em parâmetro de rota, query ou header), `400 PARAMETRO_AUSENTE` (parâmetro, part ou header obrigatório ausente) e `406 TIPO_RESPOSTA_NAO_ACEITO` (corpo em JSON com `Content-Type` fixado); tabela de códigos (aqui e no Swagger, gerada do enum); coleções com `Listar categorias com filtro inválido` (39 requisições). Front: espelhar os 3 códigos no `CLAUDE.md` do front. Pendência: os outros erros com um `Accept` que exclui JSON (ex.: `404` com `Accept: text/csv`) não conseguem escrever o `ErroResponse` e viram falha do servidor sem `codigo`; resolvida na entrega 22 |
+| 22 | Erro em JSON com qualquer `Accept` + saúde da API + Mailpit com versão fixa | ✅ branch `feat/saude-accept`, aguardando PR | Todo erro (`GlobalExceptionHandler`, `@ExceptionHandler` do `ArquivoResource`, `ErroPadraoController`) com `Content-Type: application/json` fixado (`ErroResponse.comoResposta()`): erro na exportação com `Accept: text/csv`/`application/octet-stream` sai com status e `codigo` próprios (antes `500`/`406` sem `codigo`). `spring-boot-starter-actuator` só com `GET /actuator/health` público, sem detalhes (`SaudeIntegracaoTest`); `HEALTHCHECK` do `Dockerfile` por HTTP (`wget` do BusyBox, sem instalar nada) no lugar do `nc -z`; coleções com a pasta `00 Saúde` (40 requisições; `ColecaoApiTest` conhece o endpoint do actuator); Mailpit `v1.33.1` no compose. Front: espelhar "Saúde" e a nota do `Accept` no `CLAUDE.md` do front |
 | 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ na branch `chore/fechamento-backend`, aguardando PR | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
