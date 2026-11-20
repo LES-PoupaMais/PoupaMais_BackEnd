@@ -591,6 +591,49 @@
           ]
         },
         {
+          "name": "Listar categorias com filtro inválido (espera 400)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/categorias?ativa=talvez",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "categorias"
+              ],
+              "query": [
+                {
+                  "key": "ativa",
+                  "value": "talvez",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Parâmetro de rota ou de query com tipo errado (`ativa=talvez`, `/api/lancamentos/abc`): **400** com `codigo` `PARAMETRO_INVALIDO` e a mensagem com o nome do parâmetro. Parâmetro obrigatório ausente dá **400** `PARAMETRO_AUSENTE`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status esperado (400)\", function () {",
+                  "  pm.expect([400]).to.include(pm.response.code);",
+                  "});",
+                  "if (pm.response.code >= 400) {",
+                  "  pm.test(\"Código de erro (PARAMETRO_INVALIDO)\", function () {",
+                  "    pm.expect(pm.response.json().codigo).to.eql(\"PARAMETRO_INVALIDO\");",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Editar categoria",
           "request": {
             "method": "PUT",

@@ -15,12 +15,16 @@ public enum CodigoErro {
   VALIDACAO(400, "Campos inválidos no corpo ou nos parâmetros (vem com erros[])"),
   CORPO_INVALIDO(400, "Corpo ilegível: JSON quebrado, valor fora do enum, tipo errado"),
   REQUISICAO_INVALIDA(400, "Requisição recusada antes de chegar à API (ex.: URL malformada)"),
+  PARAMETRO_INVALIDO(
+      400, "Parâmetro de rota, query ou header com tipo errado (ex.: id não numérico)"),
+  PARAMETRO_AUSENTE(400, "Parâmetro, part de multipart ou header obrigatório ausente"),
   NAO_AUTENTICADO(401, "Sem token, token inválido/expirado ou sessão derrubada"),
   ACESSO_NEGADO(403, "Usuário autenticado sem permissão para o recurso"),
   NAO_ENCONTRADO(404, "Rota inexistente"),
   METODO_NAO_PERMITIDO(405, "Método HTTP não suportado na rota"),
   ARQUIVO_GRANDE_DEMAIS(
       422, "Upload acima de 2 MB (CSV, foto ou multipart); 413 se o servidor recusar antes"),
+  TIPO_RESPOSTA_NAO_ACEITO(406, "Accept sem nenhum formato que a rota produz (resposta em JSON)"),
   TIPO_CONTEUDO_NAO_SUPORTADO(415, "Content-Type não aceito pela rota"),
   ERRO_INTERNO(500, "Erro inesperado (sem detalhes internos)"),
 

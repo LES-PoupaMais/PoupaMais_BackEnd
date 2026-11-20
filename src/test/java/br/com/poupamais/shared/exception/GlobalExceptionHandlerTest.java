@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -23,11 +25,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartFile;
 
 class GlobalExceptionHandlerTest {
 
@@ -161,6 +168,89 @@ class GlobalExceptionHandlerTest {
         .andExpect(jsonPath("$.erros[0].campo").value("data"));
   }
 
+  @Test
+  void pathVariableDeTipoErradoRetorna400ComParametroInvalido() throws Exception {
+    mvc.perform(get("/teste/numero/abc"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.codigo").value("PARAMETRO_INVALIDO"))
+        .andExpect(jsonPath("$.mensagem").value("Parâmetro inválido: id. Confira o valor enviado."))
+        .andExpect(jsonPath("$.erros").doesNotExist());
+  }
+
+  @Test
+  void queryParamDeTipoErradoRetorna400ComParametroInvalido() throws Exception {
+    mvc.perform(get("/teste/busca").param("ativa", "talvez"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("PARAMETRO_INVALIDO"))
+        .andExpect(
+            jsonPath("$.mensagem").value("Parâmetro inválido: ativa. Confira o valor enviado."));
+  }
+
+  @Test
+  void headerDeTipoErradoRetorna400ComParametroInvalido() throws Exception {
+    mvc.perform(get("/teste/cabecalho").header("X-Versao", "dois"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("PARAMETRO_INVALIDO"))
+        .andExpect(
+            jsonPath("$.mensagem").value("Parâmetro inválido: X-Versao. Confira o valor enviado."));
+  }
+
+  /** Query de objeto ({@code @ModelAttribute}) continua em VALIDACAO, com o erro no campo. */
+  @Test
+  void queryDeObjetoComTipoErradoContinuaEmValidacao() throws Exception {
+    mvc.perform(get("/teste/periodo").param("mes", "xx"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
+        .andExpect(jsonPath("$.erros[0].campo").value("mes"));
+  }
+
+  @Test
+  void queryParamObrigatorioAusenteRetorna400ComParametroAusente() throws Exception {
+    mvc.perform(get("/teste/busca"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.codigo").value("PARAMETRO_AUSENTE"))
+        .andExpect(jsonPath("$.mensagem").value("Parâmetro obrigatório ausente: ativa."))
+        .andExpect(jsonPath("$.erros").doesNotExist());
+  }
+
+  @Test
+  void partDeMultipartAusenteRetorna400ComParametroAusente() throws Exception {
+    mvc.perform(multipart("/teste/arquivo").param("outro", "x"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("PARAMETRO_AUSENTE"))
+        .andExpect(jsonPath("$.mensagem").value("Parâmetro obrigatório ausente: arquivo."));
+  }
+
+  @Test
+  void headerObrigatorioAusenteRetorna400ComParametroAusente() throws Exception {
+    mvc.perform(get("/teste/cabecalho"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("PARAMETRO_AUSENTE"))
+        .andExpect(jsonPath("$.mensagem").value("Parâmetro obrigatório ausente: X-Versao."));
+  }
+
+  /** Accept que a rota não produz: 406 com o corpo em JSON mesmo assim (Content-Type fixado). */
+  @Test
+  void acceptNaoAtendidoRetorna406EmJsonMesmoSemOClienteAceitarJson() throws Exception {
+    mvc.perform(get("/produz/json").accept(MediaType.TEXT_PLAIN))
+        .andExpect(status().isNotAcceptable())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.status").value(406))
+        .andExpect(jsonPath("$.codigo").value("TIPO_RESPOSTA_NAO_ACEITO"))
+        .andExpect(jsonPath("$.mensagem").value(GlobalExceptionHandler.MSG_TIPO_RESPOSTA));
+  }
+
+  /** Sem {@code produces}, o 406 só aparece ao escrever o retorno: o handler também o trata. */
+  @Test
+  void acceptNaoAtendidoAoEscreverORetornoRetorna406EmJson() throws Exception {
+    mvc.perform(get("/teste/objeto").accept("text/csv"))
+        .andExpect(status().isNotAcceptable())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.codigo").value("TIPO_RESPOSTA_NAO_ACEITO"));
+  }
+
   /**
    * Nenhum caminho de erro sai sem {@code codigo}: todo handler devolve {@link ErroResponse} (que
    * recusa código nulo) e cada caso de erro do controller de teste responde com {@code codigo}.
@@ -193,11 +283,18 @@ class GlobalExceptionHandlerTest {
         .andExpect(jsonPath("$.codigo").isNotEmpty());
     mvc.perform(delete("/teste")).andExpect(jsonPath("$.codigo").isNotEmpty());
     mvc.perform(get("/rota/que/nao/existe")).andExpect(jsonPath("$.codigo").isNotEmpty());
+    mvc.perform(get("/teste/numero/abc")).andExpect(jsonPath("$.codigo").isNotEmpty());
+    mvc.perform(get("/teste/busca")).andExpect(jsonPath("$.codigo").isNotEmpty());
+    mvc.perform(multipart("/teste/arquivo")).andExpect(jsonPath("$.codigo").isNotEmpty());
+    mvc.perform(get("/produz/json").accept(MediaType.TEXT_PLAIN))
+        .andExpect(jsonPath("$.codigo").isNotEmpty());
   }
 
   record ComData(LocalDate data) {}
 
   record Pedido(@NotBlank(message = "O nome é obrigatório") String nome) {}
+
+  record Periodo(Integer mes) {}
 
   @RestController
   static class ControllerDeTeste {
@@ -207,6 +304,31 @@ class GlobalExceptionHandlerTest {
 
     @PostMapping("/teste/data")
     void data(@RequestBody ComData corpo) {}
+
+    @GetMapping("/teste/numero/{id}")
+    void numero(@PathVariable Long id) {}
+
+    @GetMapping("/teste/busca")
+    void busca(@RequestParam Boolean ativa) {}
+
+    @GetMapping("/teste/cabecalho")
+    void cabecalho(@RequestHeader("X-Versao") Integer versao) {}
+
+    @GetMapping("/teste/periodo")
+    void periodo(@ModelAttribute Periodo periodo) {}
+
+    @PostMapping("/teste/arquivo")
+    void arquivo(@RequestPart("arquivo") MultipartFile arquivo) {}
+
+    @GetMapping(path = "/produz/json", produces = MediaType.APPLICATION_JSON_VALUE)
+    Pedido json() {
+      return new Pedido("x");
+    }
+
+    @GetMapping("/teste/objeto")
+    Pedido objeto() {
+      return new Pedido("x");
+    }
 
     @GetMapping("/teste/{caso}")
     void lancar(@PathVariable String caso) {

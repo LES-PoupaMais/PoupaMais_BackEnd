@@ -1,0 +1,30 @@
+meta {
+  name: Listar categorias com filtro inválido (espera 400)
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/api/categorias?ativa=talvez
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ativa: talvez
+}
+
+tests {
+  test("Status esperado (400)", function () {
+    expect([400]).to.include(res.status);
+  });
+  if (res.status >= 400) {
+    test("Código de erro (PARAMETRO_INVALIDO)", function () {
+      expect(res.body.codigo).to.eql("PARAMETRO_INVALIDO");
+    });
+  }
+}
+
+docs {
+  Parâmetro de rota ou de query com tipo errado (`ativa=talvez`, `/api/lancamentos/abc`): **400** com `codigo` `PARAMETRO_INVALIDO` e a mensagem com o nome do parâmetro. Parâmetro obrigatório ausente dá **400** `PARAMETRO_AUSENTE`.
+}

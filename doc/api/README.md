@@ -1,6 +1,6 @@
 # Coleções da API (Bruno e Postman)
 
-Todos os endpoints da API do PoupaMais (38 requisições em 8 pastas), prontos para importar no **Bruno** ou no **Postman**.
+Todos os endpoints da API do PoupaMais (39 requisições em 8 pastas), prontos para importar no **Bruno** ou no **Postman**.
 Cada requisição traz o corpo de exemplo, o teste do status esperado e uma descrição curta.
 
 | Pasta | O que tem |
@@ -36,8 +36,8 @@ Suba a API: `docker compose up -d --build` (API em http://localhost:8080, e-mail
 - **Recuperação de senha (manual):** `Pedir link de redefinição` manda o e-mail ao Mailpit (http://localhost:8025). Copie o `token` do
   link para a variável `tokenRedefinicao` e rode `Redefinir senha`. Sem isso a resposta é `422`, o esperado ao rodar tudo de uma vez.
 - **`Excluir minha conta` fica por último:** apaga o usuário de teste e todos os dados dele. Depois, o `Cadastro` funciona de novo.
-- Também há casos de erro de propósito: login com senha errada (`401`), lançamento inválido (`400` com `erros[]`), lançamento com `status: DELETADO` (`400`) e exclusão de
-  categoria em uso (`422`). Toda resposta de erro traz `codigo` (ex.: `CREDENCIAIS_INVALIDAS`, `VALIDACAO`, `CATEGORIA_VINCULADA`;
+- Também há casos de erro de propósito: login com senha errada (`401`), lançamento inválido (`400` com `erros[]`), filtro de categorias com tipo errado (`400`), lançamento com `status: DELETADO` (`400`) e exclusão de
+  categoria em uso (`422`). Toda resposta de erro traz `codigo` (ex.: `CREDENCIAIS_INVALIDAS`, `VALIDACAO`, `PARAMETRO_INVALIDO`, `CATEGORIA_VINCULADA`;
   tabela no `CLAUDE.md`), e essas requisições também testam o `codigo` esperado.
 - Variáveis padrão: `baseUrl` `http://localhost:8080`, usuário `teste.colecao@poupamais.local` / `senha123`, `mes` `11`, `ano` `2026` (filtros) e `data` `2026-11-05` (corpo do lançamento, ISO `AAAA-MM-DD`).
 

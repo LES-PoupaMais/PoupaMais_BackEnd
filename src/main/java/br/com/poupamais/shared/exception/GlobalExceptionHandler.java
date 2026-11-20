@@ -5,15 +5,21 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import tools.jackson.databind.exc.MismatchedInputException;
@@ -29,6 +35,8 @@ public class GlobalExceptionHandler {
   static final String MSG_TIPO_CONTEUDO =
       "Formato de conteúdo não suportado nesta rota. Confira o Content-Type.";
   static final String MSG_ACESSO_NEGADO = "Você não tem permissão para acessar este recurso.";
+  static final String MSG_TIPO_RESPOSTA =
+      "Formato de resposta não disponível nesta rota. Confira o Accept.";
 
   static final String MSG_DATA_INVALIDA =
       "Data inválida. Use o formato AAAA-MM-DD com um dia que exista.";
@@ -103,6 +111,49 @@ public class GlobalExceptionHandler {
     return resposta(
         HttpStatus.UNSUPPORTED_MEDIA_TYPE,
         new ErroResponse(415, CodigoErro.TIPO_CONTEUDO_NAO_SUPORTADO, MSG_TIPO_CONTEUDO));
+  }
+
+  /** Tipo errado em parâmetro de rota, query ou header (ex.: {@code /api/lancamentos/abc}). */
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  public ResponseEntity<ErroResponse> parametroInvalido(MethodArgumentTypeMismatchException ex) {
+    return resposta(
+        HttpStatus.BAD_REQUEST,
+        new ErroResponse(
+            400,
+            CodigoErro.PARAMETRO_INVALIDO,
+            "Parâmetro inválido: " + ex.getName() + ". Confira o valor enviado."));
+  }
+
+  @ExceptionHandler({
+    MissingServletRequestParameterException.class,
+    MissingServletRequestPartException.class,
+    MissingRequestHeaderException.class
+  })
+  public ResponseEntity<ErroResponse> parametroAusente(Exception ex) {
+    String nome =
+        switch (ex) {
+          case MissingServletRequestParameterException e -> e.getParameterName();
+          case MissingServletRequestPartException e -> e.getRequestPartName();
+          case MissingRequestHeaderException e -> e.getHeaderName();
+          default -> throw new IllegalStateException(ex);
+        };
+    return resposta(
+        HttpStatus.BAD_REQUEST,
+        new ErroResponse(
+            400, CodigoErro.PARAMETRO_AUSENTE, "Parâmetro obrigatório ausente: " + nome + "."));
+  }
+
+  /**
+   * O cliente não aceita nenhum formato que a rota produz. Mesmo assim a resposta sai em JSON, com
+   * o Content-Type fixado: sem isso o Spring negociaria de novo com o mesmo Accept, falharia ao
+   * escrever o erro e responderia 406 sem corpo nem {@code codigo}.
+   */
+  @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
+  public ResponseEntity<ErroResponse> tipoRespostaNaoAceito(
+      HttpMediaTypeNotAcceptableException ex) {
+    return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE)
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(new ErroResponse(406, CodigoErro.TIPO_RESPOSTA_NAO_ACEITO, MSG_TIPO_RESPOSTA));
   }
 
   @ExceptionHandler(AccessDeniedException.class)
