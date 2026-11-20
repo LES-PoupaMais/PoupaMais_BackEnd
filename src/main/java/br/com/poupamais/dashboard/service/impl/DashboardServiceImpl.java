@@ -117,6 +117,7 @@ public class DashboardServiceImpl implements DashboardService {
     return new MaiorDespesa(
         despesa.id(),
         despesa.descricao(),
+        despesa.data(),
         despesa.valor(),
         despesa.categorias().stream().map(CategoriaResumo::descricao).toList());
   }
