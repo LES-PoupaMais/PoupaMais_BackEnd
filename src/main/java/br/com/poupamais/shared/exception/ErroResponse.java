@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.util.List;
 import java.util.Objects;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 /**
  * Formato único de erro da API (contrato no CLAUDE.md). {@code codigo} vem sempre (estável, para o
@@ -26,6 +28,16 @@ public record ErroResponse(
 
   public ErroResponse(int status, CodigoErro codigo, String mensagem) {
     this(status, codigo, mensagem, null);
+  }
+
+  /**
+   * Resposta HTTP com este corpo e o {@link #status()}, <b>sempre em JSON</b>, qualquer que seja o
+   * {@code Accept}. Com o Content-Type fixado o Spring não negocia o formato de novo: sem isso, um
+   * erro numa rota pedida com {@code Accept: text/csv} (ex.: exportar) falharia ao ser escrito e
+   * sairia sem {@code codigo} (406 vazio ou 500).
+   */
+  public ResponseEntity<ErroResponse> comoResposta() {
+    return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(this);
   }
 
   public record ErroCampo(String campo, String mensagem) {}

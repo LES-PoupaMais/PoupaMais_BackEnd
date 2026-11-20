@@ -84,6 +84,45 @@
   ],
   "item": [
     {
+      "name": "00 Saúde",
+      "item": [
+        {
+          "name": "Saúde da API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            },
+            "description": "Público (sem token). **200** `{\"status\":\"UP\"}` com a API e o banco no ar; **503** `{\"status\":\"DOWN\"}` se não. Sem detalhes. É o que o HEALTHCHECK do Docker consulta.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status esperado (200)\", function () {",
+                  "  pm.expect([200]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "01 Autenticação",
       "item": [
         {

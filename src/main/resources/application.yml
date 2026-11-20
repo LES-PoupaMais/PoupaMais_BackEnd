@@ -46,6 +46,26 @@ poupamais:
   # Swagger/OpenAPI: true em dev, false em produção (desliga o springdoc e tira as rotas da lista pública)
   swagger-habilitado: ${SWAGGER_HABILITADO:true}
 
+# Actuator: só a saúde (GET /actuator/health, público, para o HEALTHCHECK do Docker). Responde {"status":"UP"}
+# ou 503 {"status":"DOWN"}, sem detalhes para ninguém; o banco entra na conta, o e-mail não (falha de envio é tolerada, RN014).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+      discovery:
+        enabled: false
+  endpoint:
+    health:
+      show-details: never
+      show-components: never
+      # Sem os grupos liveness/readiness (eles apareceriam como "groups" na resposta): só {"status":"UP"}
+      probes:
+        enabled: false
+  health:
+    mail:
+      enabled: false
+
 springdoc:
   api-docs:
     enabled: ${poupamais.swagger-habilitado}

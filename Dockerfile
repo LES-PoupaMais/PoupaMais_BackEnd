@@ -14,6 +14,8 @@ RUN addgroup -S poupamais && adduser -S poupamais -G poupamais
 COPY --from=build /app/app.jar app.jar
 USER poupamais
 EXPOSE 8080
-# Porta 8080 aberta = contexto subiu (Flyway e validação do Hibernate já passaram)
-HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=5 CMD nc -z localhost 8080 || exit 1
+# Saudável = GET /actuator/health responde {"status":"UP"} (contexto no ar e banco acessível; 503 se o banco cair).
+# wget é o do BusyBox, que já vem na imagem Alpine (sem instalar nada); 127.0.0.1 evita depender do IPv6 do localhost.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=5 \
+    CMD wget -q -O - http://127.0.0.1:8080/actuator/health | grep -q '"status":"UP"' || exit 1
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]

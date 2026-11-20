@@ -144,16 +144,15 @@ public class GlobalExceptionHandler {
   }
 
   /**
-   * O cliente não aceita nenhum formato que a rota produz. Mesmo assim a resposta sai em JSON, com
-   * o Content-Type fixado: sem isso o Spring negociaria de novo com o mesmo Accept, falharia ao
-   * escrever o erro e responderia 406 sem corpo nem {@code codigo}.
+   * O cliente não aceita nenhum formato que a rota produz. Mesmo assim a resposta sai em JSON, como
+   * todo erro (ver {@link ErroResponse#comoResposta()}).
    */
   @ExceptionHandler(HttpMediaTypeNotAcceptableException.class)
   public ResponseEntity<ErroResponse> tipoRespostaNaoAceito(
       HttpMediaTypeNotAcceptableException ex) {
-    return ResponseEntity.status(HttpStatus.NOT_ACCEPTABLE)
-        .contentType(MediaType.APPLICATION_JSON)
-        .body(new ErroResponse(406, CodigoErro.TIPO_RESPOSTA_NAO_ACEITO, MSG_TIPO_RESPOSTA));
+    return resposta(
+        HttpStatus.NOT_ACCEPTABLE,
+        new ErroResponse(406, CodigoErro.TIPO_RESPOSTA_NAO_ACEITO, MSG_TIPO_RESPOSTA));
   }
 
   @ExceptionHandler(AccessDeniedException.class)
@@ -187,7 +186,11 @@ public class GlobalExceptionHandler {
         new ErroResponse(500, CodigoErro.ERRO_INTERNO, MSG_ERRO_INTERNO));
   }
 
+  /**
+   * Todo erro sai em JSON, independentemente do {@code Accept} ({@link
+   * ErroResponse#comoResposta()}).
+   */
   private static ResponseEntity<ErroResponse> resposta(HttpStatus status, ErroResponse corpo) {
-    return ResponseEntity.status(status).body(corpo);
+    return ResponseEntity.status(status).contentType(MediaType.APPLICATION_JSON).body(corpo);
   }
 }

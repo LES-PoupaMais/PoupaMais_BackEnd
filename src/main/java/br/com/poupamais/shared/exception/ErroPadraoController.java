@@ -26,7 +26,7 @@ public class ErroPadraoController implements ErrorController {
       status = 500;
     }
     CodigoErro codigo = CodigoErro.padraoDoStatus(status);
-    return ResponseEntity.status(status).body(new ErroResponse(status, codigo, mensagem(codigo)));
+    return new ErroResponse(status, codigo, mensagem(codigo)).comoResposta();
   }
 
   static String mensagem(CodigoErro codigo) {

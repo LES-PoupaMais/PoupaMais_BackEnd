@@ -40,13 +40,16 @@ class ColecaoApiTest {
   private static final Pattern METODO_BRU =
       Pattern.compile("^(get|post|put|patch|delete) \\{\\s*\\n\\s*url: (\\S+)", Pattern.MULTILINE);
 
+  /** Endpoints que não vêm de um controller nosso (actuator), mas fazem parte do contrato. */
+  private static final Set<String> ENDPOINTS_FORA_DOS_CONTROLLERS = Set.of("GET /actuator/health");
+
   private static Set<String> endpointsDaApi;
 
   @BeforeAll
   static void lerEndpointsDosControllers() throws ClassNotFoundException {
     var scanner = new ClassPathScanningCandidateComponentProvider(false);
     scanner.addIncludeFilter(new AnnotationTypeFilter(RestController.class));
-    endpointsDaApi = new TreeSet<>();
+    endpointsDaApi = new TreeSet<>(ENDPOINTS_FORA_DOS_CONTROLLERS);
     for (var definicao : scanner.findCandidateComponents("br.com.poupamais")) {
       Class<?> controller = Class.forName(definicao.getBeanClassName());
       if (!ehControllerDaApi(controller)) {
