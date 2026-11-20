@@ -1,6 +1,6 @@
 # Coleções da API (Bruno e Postman)
 
-Todos os endpoints da API do PoupaMais (39 requisições em 8 pastas), prontos para importar no **Bruno** ou no **Postman**.
+Todos os endpoints da API do PoupaMais (40 requisições em 9 pastas), prontos para importar no **Bruno** ou no **Postman**.
 Cada requisição traz o corpo de exemplo, o teste do status esperado e uma descrição curta.
 
 | Pasta | O que tem |

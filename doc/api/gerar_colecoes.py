@@ -66,6 +66,11 @@ LANCAMENTO = """{
 }"""
 
 REQUISICOES = [
+    # 00 · Saúde ----------------------------------------------------------------------------
+    r("00 Saúde", "Saúde da API", "GET", "/actuator/health", auth=False,
+      doc="Público (sem token). **200** `{\"status\":\"UP\"}` com a API e o banco no ar; **503** `{\"status\":\"DOWN\"}` "
+          "se não. Sem detalhes. É o que o HEALTHCHECK do Docker consulta."),
+
     # 01 · Autenticação ---------------------------------------------------------------------
     r("01 Autenticação", "Cadastro", "POST", "/api/auth/cadastro", auth=False,
       json_body='{\n  "nome": "{{nome}}",\n  "email": "{{email}}",\n  "senha": "{{senha}}",\n  "aceiteTermos": true\n}',

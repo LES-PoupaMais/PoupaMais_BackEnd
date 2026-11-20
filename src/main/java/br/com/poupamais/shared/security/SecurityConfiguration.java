@@ -16,8 +16,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 /**
  * Segurança da API: JWT stateless, CSRF desligado, rotas públicas do contrato (cadastro, login,
- * recuperação de senha e, se {@code SWAGGER_HABILITADO=true}, o Swagger), todo o resto autenticado.
- * CORS vem do {@code WebConfiguration}.
+ * recuperação de senha, saúde em {@code GET /actuator/health} e, se {@code
+ * SWAGGER_HABILITADO=true}, o Swagger), todo o resto autenticado. CORS vem do {@code
+ * WebConfiguration}.
  */
 @Configuration
 public class SecurityConfiguration {
@@ -28,6 +29,9 @@ public class SecurityConfiguration {
     "/api/auth/recuperar-senha",
     "/api/auth/redefinir-senha"
   };
+
+  /** Saúde da API (actuator, sem detalhes): HEALTHCHECK do Docker e monitoramento, sem token. */
+  static final String ROTA_SAUDE = "/actuator/health";
 
   static final String[] ROTAS_SWAGGER = {"/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**"};
 
@@ -46,6 +50,7 @@ public class SecurityConfiguration {
           // isto, um erro fora do MVC viraria 401 sem corpo útil
           rotas.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
           rotas.requestMatchers(HttpMethod.POST, ROTAS_PUBLICAS_POST).permitAll();
+          rotas.requestMatchers(HttpMethod.GET, ROTA_SAUDE).permitAll();
           if (swaggerHabilitado) {
             rotas.requestMatchers(ROTAS_SWAGGER).permitAll();
           }
