@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -86,7 +87,8 @@ class PerfilServiceImplTest {
   void deveRecusarNomeVazio() {
     assertThatThrownBy(() -> service.atualizarNome(1L, " "))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("O nome é obrigatório");
+        .hasMessage("O nome é obrigatório")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.DADOS_CONTA_INVALIDOS);
   }
 
   @Test
@@ -106,7 +108,8 @@ class PerfilServiceImplTest {
   void deveRecusarTrocaComSenhaAtualErradaCom422() {
     assertThatThrownBy(() -> service.trocarSenha(1L, "errada", "senhaNova"))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A senha atual está incorreta");
+        .hasMessage("A senha atual está incorreta")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.SENHA_ATUAL_INCORRETA);
     assertThatThrownBy(() -> service.trocarSenha(1L, null, "senhaNova"))
         .isInstanceOf(RegraNegocioException.class);
     verify(usuarios, never()).save(any());
@@ -116,14 +119,16 @@ class PerfilServiceImplTest {
   void deveRecusarNovaSenhaIgualAAtual() {
     assertThatThrownBy(() -> service.trocarSenha(1L, "senhaAtual", "senhaAtual"))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A nova senha deve ser diferente da atual");
+        .hasMessage("A nova senha deve ser diferente da atual")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.SENHA_IGUAL_A_ATUAL);
   }
 
   @Test
   void deveRecusarNovaSenhaCurta() {
     assertThatThrownBy(() -> service.trocarSenha(1L, "senhaAtual", "123"))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A senha deve ter entre 6 e 72 caracteres");
+        .hasMessage("A senha deve ter entre 6 e 72 caracteres")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.DADOS_CONTA_INVALIDOS);
   }
 
   @Test
@@ -135,7 +140,8 @@ class PerfilServiceImplTest {
     assertThat(service.buscarFoto(1L)).isSameAs(foto);
     assertThatThrownBy(() -> service.buscarFoto(2L))
         .isInstanceOf(RecursoNaoEncontradoException.class)
-        .hasMessage("Foto de perfil não encontrada");
+        .hasMessage("Foto de perfil não encontrada")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.FOTO_NAO_ENCONTRADA);
   }
 
   @Test
@@ -179,7 +185,8 @@ class PerfilServiceImplTest {
 
     assertThatThrownBy(() -> service.salvarFoto(1L, grande))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A foto deve ter no máximo 2 MB");
+        .hasMessage("A foto deve ter no máximo 2 MB")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.ARQUIVO_GRANDE_DEMAIS);
     verify(fotos, never()).save(any());
   }
 
@@ -187,7 +194,8 @@ class PerfilServiceImplTest {
   void deveRecusarArquivoQueNaoEhImagemMesmoComNomeDeImagem() {
     assertThatThrownBy(() -> service.salvarFoto(1L, "GIF89a...".getBytes()))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A foto deve ser uma imagem JPG, PNG ou WEBP");
+        .hasMessage("A foto deve ser uma imagem JPG, PNG ou WEBP")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.FOTO_TIPO_INVALIDO);
     assertThatThrownBy(() -> service.salvarFoto(1L, null))
         .isInstanceOf(RegraNegocioException.class);
   }

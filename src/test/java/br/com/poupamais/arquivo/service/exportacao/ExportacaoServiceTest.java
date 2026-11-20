@@ -13,6 +13,7 @@ import br.com.poupamais.lancamento.publico.dto.FiltroLancamento;
 import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -77,7 +78,8 @@ class ExportacaoServiceTest {
 
     assertThatThrownBy(() -> service.exportar(USUARIO, "xlsx", FILTRO))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Não há dados para exportação");
+        .hasMessage("Não há dados para exportação")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.SEM_DADOS_EXPORTACAO);
   }
 
   @Test

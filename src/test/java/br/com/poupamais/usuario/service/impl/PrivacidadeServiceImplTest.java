@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.usuario.model.entidades.Usuario;
@@ -40,7 +41,8 @@ class PrivacidadeServiceImplTest {
 
     assertThatThrownBy(() -> service.excluirConta(1L, "errada"))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Senha incorreta");
+        .hasMessage("Senha incorreta")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.SENHA_INCORRETA);
     assertThatThrownBy(() -> service.excluirConta(1L, null))
         .isInstanceOf(RegraNegocioException.class);
     verify(repository, never()).delete(any());

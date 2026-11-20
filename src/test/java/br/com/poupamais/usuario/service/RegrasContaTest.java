@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,12 +30,14 @@ class RegrasContaTest {
   void deveRecusarNomeVazioOuMaiorQue150() {
     assertThatThrownBy(() -> RegrasConta.normalizarNome("   "))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("O nome é obrigatório");
+        .hasMessage("O nome é obrigatório")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.DADOS_CONTA_INVALIDOS);
     assertThatThrownBy(() -> RegrasConta.normalizarNome(null))
         .isInstanceOf(RegraNegocioException.class);
     assertThatThrownBy(() -> RegrasConta.normalizarNome("a".repeat(151)))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("O nome deve ter no máximo 150 caracteres");
+        .hasMessage("O nome deve ter no máximo 150 caracteres")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.DADOS_CONTA_INVALIDOS);
   }
 
   @Test
@@ -48,7 +51,8 @@ class RegrasContaTest {
     for (String senha : new String[] {null, "12345", "a".repeat(73)}) {
       assertThatThrownBy(() -> RegrasConta.validarSenha(senha))
           .isInstanceOf(RegraNegocioException.class)
-          .hasMessage("A senha deve ter entre 6 e 72 caracteres");
+          .hasMessage("A senha deve ter entre 6 e 72 caracteres")
+          .hasFieldOrPropertyWithValue("codigo", CodigoErro.DADOS_CONTA_INVALIDOS);
     }
   }
 

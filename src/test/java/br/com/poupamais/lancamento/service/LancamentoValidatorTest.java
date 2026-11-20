@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,7 +32,8 @@ class LancamentoValidatorTest {
   private void deveRecusar(NovoLancamento dados, String mensagem) {
     assertThatThrownBy(() -> validator.validar(dados))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage(mensagem);
+        .hasMessage(mensagem)
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_INVALIDO);
   }
 
   @Test

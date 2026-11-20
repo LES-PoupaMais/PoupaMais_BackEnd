@@ -198,7 +198,8 @@ class ArquivoIntegracaoTest {
                 .param("formato", "xlsx")
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent())
-        .andExpect(jsonPath("$.mensagem").value("Não há dados para exportação"));
+        .andExpect(jsonPath("$.mensagem").value("Não há dados para exportação"))
+        .andExpect(jsonPath("$.codigo").value("SEM_DADOS_EXPORTACAO"));
 
     mvc.perform(
         multipart("/api/lancamentos/importar")
@@ -234,7 +235,8 @@ class ArquivoIntegracaoTest {
                 .param("formato", "pdf")
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.mensagem").value("Formato inválido. Use: csv ou xlsx"));
+        .andExpect(jsonPath("$.mensagem").value("Formato inválido. Use: csv ou xlsx"))
+        .andExpect(jsonPath("$.codigo").value("FORMATO_EXPORTACAO_INVALIDO"));
     mvc.perform(get("/api/lancamentos/999999999").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isNotFound());
     mvc.perform(get("/api/lancamentos").header(HttpHeaders.AUTHORIZATION, bearer))

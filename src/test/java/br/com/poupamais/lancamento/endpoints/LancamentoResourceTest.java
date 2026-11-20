@@ -25,6 +25,7 @@ import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.lancamento.service.LancamentoService;
 import br.com.poupamais.shared.config.WebConfiguration;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.shared.security.JwtService;
@@ -183,6 +184,7 @@ class LancamentoResourceTest {
     mvc.perform(autenticado(get("/api/lancamentos?tamanho=101")))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
         .andExpect(jsonPath("$.erros[0].campo").value("tamanho"))
         .andExpect(
             jsonPath("$.erros[0].mensagem").value("O tamanho da página deve ser de 1 a 100"));
@@ -220,11 +222,14 @@ class LancamentoResourceTest {
   @Test
   void deveDevolver404QuandoCategoriaDoFiltroNaoEDoUsuario() throws Exception {
     when(service.listarPagina(eq(USUARIO), any(), anyInt(), anyInt()))
-        .thenThrow(new RecursoNaoEncontradoException("Categoria não encontrada"));
+        .thenThrow(
+            new RecursoNaoEncontradoException(
+                CodigoErro.CATEGORIA_NAO_ENCONTRADA, "Categoria não encontrada"));
 
     mvc.perform(autenticado(get("/api/lancamentos?categoriaId=99")))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.mensagem").value("Categoria não encontrada"));
+        .andExpect(jsonPath("$.mensagem").value("Categoria não encontrada"))
+        .andExpect(jsonPath("$.codigo").value("CATEGORIA_NAO_ENCONTRADA"));
   }
 
   @Test
@@ -256,7 +261,8 @@ class LancamentoResourceTest {
   @Test
   void deveDevolver404ParaLancamentoDeOutroUsuario() throws Exception {
     RecursoNaoEncontradoException naoEncontrado =
-        new RecursoNaoEncontradoException("Lançamento não encontrado");
+        new RecursoNaoEncontradoException(
+            CodigoErro.LANCAMENTO_NAO_ENCONTRADO, "Lançamento não encontrado");
     when(service.buscar(USUARIO, 2L)).thenThrow(naoEncontrado);
     when(service.editar(eq(USUARIO), eq(2L), any(), any())).thenThrow(naoEncontrado);
     when(service.alterarStatus(USUARIO, 2L, StatusLancamento.INATIVO)).thenThrow(naoEncontrado);
@@ -265,7 +271,8 @@ class LancamentoResourceTest {
 
     mvc.perform(autenticado(get("/api/lancamentos/2")))
         .andExpect(status().isNotFound())
-        .andExpect(jsonPath("$.mensagem").value("Lançamento não encontrado"));
+        .andExpect(jsonPath("$.mensagem").value("Lançamento não encontrado"))
+        .andExpect(jsonPath("$.codigo").value("LANCAMENTO_NAO_ENCONTRADO"));
     mvc.perform(json(put("/api/lancamentos/2"), CORPO)).andExpect(status().isNotFound());
     mvc.perform(json(patch("/api/lancamentos/2/status"), "{\"status\":\"INATIVO\"}"))
         .andExpect(status().isNotFound());
@@ -332,6 +339,7 @@ class LancamentoResourceTest {
     mvc.perform(json(post("/api/lancamentos"), deletado))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
         .andExpect(jsonPath("$.erros[0].campo").value("status"))
         .andExpect(jsonPath("$.erros[0].mensagem").value("Informe o status ATIVO ou INATIVO"));
     mvc.perform(json(put("/api/lancamentos/1"), deletado))
@@ -350,6 +358,7 @@ class LancamentoResourceTest {
                 """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
         .andExpect(jsonPath("$.erros.length()").value(5))
         .andExpect(jsonPath("$.erros[?(@.campo == 'data')].mensagem").value("A data é obrigatória"))
         .andExpect(
@@ -379,6 +388,7 @@ class LancamentoResourceTest {
     mvc.perform(json(post("/api/lancamentos"), CORPO.replace("2026-08-05", "2026-02-31")))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
         .andExpect(jsonPath("$.erros[0].campo").value("data"))
         .andExpect(
             jsonPath("$.erros[0].mensagem")
@@ -427,7 +437,9 @@ class LancamentoResourceTest {
   void deveDevolver422ParaCategoriaInativa() throws Exception {
     when(service.criar(eq(USUARIO), any(), any()))
         .thenThrow(
-            new RegraNegocioException("A categoria \"X\" está inativa e não pode ser usada"));
+            new RegraNegocioException(
+                CodigoErro.CATEGORIA_INATIVA,
+                "A categoria \"X\" está inativa e não pode ser usada"));
 
     mvc.perform(json(post("/api/lancamentos"), CORPO))
         .andExpect(status().isUnprocessableEntity())
@@ -447,7 +459,9 @@ class LancamentoResourceTest {
   @Test
   void deveDevolver422AoEditarDeletado() throws Exception {
     when(service.editar(eq(USUARIO), eq(1L), any(), any()))
-        .thenThrow(new RegraNegocioException("Lançamento excluído não pode ser editado."));
+        .thenThrow(
+            new RegraNegocioException(
+                CodigoErro.LANCAMENTO_NA_LIXEIRA, "Lançamento excluído não pode ser editado."));
 
     mvc.perform(json(put("/api/lancamentos/1"), CORPO)).andExpect(status().isUnprocessableEntity());
   }
@@ -472,7 +486,9 @@ class LancamentoResourceTest {
   @Test
   void deveDevolver400SemStatusE422ParaDeletado() throws Exception {
     when(service.alterarStatus(eq(USUARIO), anyLong(), eq(StatusLancamento.ATIVO)))
-        .thenThrow(new RegraNegocioException("Não é possível alterar o status"));
+        .thenThrow(
+            new RegraNegocioException(
+                CodigoErro.LANCAMENTO_NA_LIXEIRA, "Não é possível alterar o status"));
 
     mvc.perform(json(patch("/api/lancamentos/1/status"), "{}"))
         .andExpect(status().isBadRequest())
@@ -490,13 +506,16 @@ class LancamentoResourceTest {
 
   @Test
   void deveDevolver422AoExcluirJaExcluido() throws Exception {
-    doThrow(new RegraNegocioException("O lançamento já está excluído"))
+    doThrow(
+            new RegraNegocioException(
+                CodigoErro.LANCAMENTO_JA_EXCLUIDO, "O lançamento já está excluído"))
         .when(service)
         .excluir(USUARIO, 1L);
 
     mvc.perform(autenticado(delete("/api/lancamentos/1")))
         .andExpect(status().isUnprocessableEntity())
-        .andExpect(jsonPath("$.mensagem").value("O lançamento já está excluído"));
+        .andExpect(jsonPath("$.mensagem").value("O lançamento já está excluído"))
+        .andExpect(jsonPath("$.codigo").value("LANCAMENTO_JA_EXCLUIDO"));
   }
 
   @Test
@@ -511,7 +530,10 @@ class LancamentoResourceTest {
   @Test
   void deveDevolver422AoRestaurarNaoExcluido() throws Exception {
     when(service.restaurar(USUARIO, 1L))
-        .thenThrow(new RegraNegocioException("Só é possível restaurar um lançamento excluído"));
+        .thenThrow(
+            new RegraNegocioException(
+                CodigoErro.LANCAMENTO_NAO_EXCLUIDO,
+                "Só é possível restaurar um lançamento excluído"));
 
     mvc.perform(autenticado(post("/api/lancamentos/1/restaurar")))
         .andExpect(status().isUnprocessableEntity());

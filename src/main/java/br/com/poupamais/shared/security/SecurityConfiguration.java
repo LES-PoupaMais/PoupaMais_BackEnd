@@ -1,5 +1,6 @@
 package br.com.poupamais.shared.security;
 
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -41,14 +42,19 @@ public class SecurityConfiguration {
         .cors(Customizer.withDefaults())
         .sessionManagement(sessao -> sessao.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(rotas -> {
+          // Despacho de erro do servlet (/error): o ErroPadraoController responde no padrão; sem
+          // isto, um erro fora do MVC viraria 401 sem corpo útil
+          rotas.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
           rotas.requestMatchers(HttpMethod.POST, ROTAS_PUBLICAS_POST).permitAll();
           if (swaggerHabilitado) {
             rotas.requestMatchers(ROTAS_SWAGGER).permitAll();
           }
           rotas.anyRequest().authenticated();
         })
-        .exceptionHandling(
-            erros -> erros.authenticationEntryPoint(new ErroAutenticacaoEntryPoint()))
+        .exceptionHandling(erros ->
+            erros
+                .authenticationEntryPoint(new ErroAutenticacaoEntryPoint())
+                .accessDeniedHandler(new ErroAcessoNegadoHandler()))
         .addFilterBefore(
             new JwtAuthenticationFilter(jwtService, senhaAlteradaConsulta),
             UsernamePasswordAuthenticationFilter.class)

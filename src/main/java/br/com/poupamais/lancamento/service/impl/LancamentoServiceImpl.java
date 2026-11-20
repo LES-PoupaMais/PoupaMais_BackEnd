@@ -13,6 +13,7 @@ import br.com.poupamais.lancamento.service.LancamentoResumoConversor;
 import br.com.poupamais.lancamento.service.LancamentoService;
 import br.com.poupamais.lancamento.service.LancamentoValidator;
 import br.com.poupamais.shared.domain.Periodo;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.util.Collection;
@@ -100,7 +101,7 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
     validarStatusDoCorpo(status);
     Lancamento lancamento = buscarDoUsuario(idUsuario, id);
     if (lancamento.getStatus() == StatusLancamento.DELETADO) {
-      throw new RegraNegocioException(MSG_DELETADO_NAO_EDITA);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_NA_LIXEIRA, MSG_DELETADO_NAO_EDITA);
     }
     NovoLancamento dados = validator.validar(novo);
     // Categoria que já estava no lançamento pode continuar mesmo inativa; só as novas precisam
@@ -120,7 +121,7 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
   @Transactional
   public LancamentoResumo alterarStatus(Long idUsuario, Long id, StatusLancamento status) {
     if (status == null) {
-      throw new RegraNegocioException(MSG_STATUS_INVALIDO);
+      throw new RegraNegocioException(CodigoErro.STATUS_INVALIDO, MSG_STATUS_INVALIDO);
     }
     validarStatusDoCorpo(status);
     Lancamento lancamento = buscarDoUsuario(idUsuario, id);
@@ -137,7 +138,7 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
   public void excluir(Long idUsuario, Long id) {
     Lancamento lancamento = buscarDoUsuario(idUsuario, id);
     if (lancamento.getStatus() == StatusLancamento.DELETADO) {
-      throw new RegraNegocioException(MSG_JA_EXCLUIDO);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_JA_EXCLUIDO, MSG_JA_EXCLUIDO);
     }
     lancamento.alterarStatus(StatusLancamento.DELETADO);
     repository.save(lancamento);
@@ -148,7 +149,7 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
   public LancamentoResumo restaurar(Long idUsuario, Long id) {
     Lancamento lancamento = buscarDoUsuario(idUsuario, id);
     if (lancamento.getStatus() != StatusLancamento.DELETADO) {
-      throw new RegraNegocioException(MSG_NAO_EXCLUIDO);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_NAO_EXCLUIDO, MSG_NAO_EXCLUIDO);
     }
     lancamento.restaurar();
     return conversor.converter(repository.save(lancamento));
@@ -182,7 +183,8 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
     FiltroLancamento f = filtro == null ? FiltroLancamento.vazio() : filtro;
     if (f.categoriaId() != null
         && categoriaFacade.buscarPorIds(idUsuario, List.of(f.categoriaId())).isEmpty()) {
-      throw new RecursoNaoEncontradoException(MSG_CATEGORIA_NAO_ENCONTRADA);
+      throw new RecursoNaoEncontradoException(
+          CodigoErro.CATEGORIA_NAO_ENCONTRADA, MSG_CATEGORIA_NAO_ENCONTRADA);
     }
     return LancamentoSpecifications.doFiltro(idUsuario, f);
   }
@@ -205,7 +207,9 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
   private Lancamento buscarDoUsuario(Long idUsuario, Long id) {
     return repository
         .findByIdAndIdUsuario(id, idUsuario)
-        .orElseThrow(() -> new RecursoNaoEncontradoException(MSG_NAO_ENCONTRADO));
+        .orElseThrow(() ->
+            new RecursoNaoEncontradoException(
+                CodigoErro.LANCAMENTO_NAO_ENCONTRADO, MSG_NAO_ENCONTRADO));
   }
 
   /**
@@ -213,7 +217,7 @@ public class LancamentoServiceImpl implements LancamentoService, LancamentoFacad
    */
   private static void validarStatusDoCorpo(StatusLancamento status) {
     if (status == StatusLancamento.DELETADO) {
-      throw new RegraNegocioException(MSG_STATUS_INVALIDO);
+      throw new RegraNegocioException(CodigoErro.STATUS_INVALIDO, MSG_STATUS_INVALIDO);
     }
   }
 

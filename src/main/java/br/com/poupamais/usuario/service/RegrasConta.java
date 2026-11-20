@@ -1,5 +1,6 @@
 package br.com.poupamais.usuario.service;
 
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.time.Clock;
 import java.time.Instant;
@@ -28,17 +29,17 @@ public final class RegrasConta {
   public static String normalizarNome(String nome) {
     String normalizado = nome == null ? "" : nome.strip();
     if (normalizado.isEmpty()) {
-      throw new RegraNegocioException(MSG_NOME_OBRIGATORIO);
+      throw new RegraNegocioException(CodigoErro.DADOS_CONTA_INVALIDOS, MSG_NOME_OBRIGATORIO);
     }
     if (normalizado.length() > NOME_MAXIMO) {
-      throw new RegraNegocioException(MSG_NOME_LONGO);
+      throw new RegraNegocioException(CodigoErro.DADOS_CONTA_INVALIDOS, MSG_NOME_LONGO);
     }
     return normalizado;
   }
 
   public static void validarSenha(String senha) {
     if (senha == null || senha.length() < SENHA_MINIMA || senha.length() > SENHA_MAXIMA) {
-      throw new RegraNegocioException(MSG_SENHA_TAMANHO);
+      throw new RegraNegocioException(CodigoErro.DADOS_CONTA_INVALIDOS, MSG_SENHA_TAMANHO);
     }
   }
 

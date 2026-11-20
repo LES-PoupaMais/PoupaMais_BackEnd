@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import br.com.poupamais.shared.config.WebConfiguration;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -91,6 +92,7 @@ class AuthResourceTest {
             "{\"nome\":\"\",\"email\":\"invalido\",\"senha\":\"123\",\"aceiteTermos\":true}")
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
         .andExpect(jsonPath("$.erros[*].campo").value(hasItem("nome")))
         .andExpect(jsonPath("$.erros[*].campo").value(hasItem("email")))
         .andExpect(jsonPath("$.erros[*].campo").value(hasItem("senha")));
@@ -99,13 +101,16 @@ class AuthResourceTest {
   @Test
   void deveDevolver409QuandoEmailDuplicado() throws Exception {
     when(authService.cadastrar(anyString(), anyString(), anyString(), anyBoolean()))
-        .thenThrow(new ConflitoException("Este e-mail já está cadastrado"));
+        .thenThrow(
+            new ConflitoException(
+                CodigoErro.EMAIL_JA_CADASTRADO, "Este e-mail já está cadastrado"));
 
     postar(
             "cadastro",
             "{\"nome\":\"Ana\",\"email\":\"ana@email.com\",\"senha\":\"123456\",\"aceiteTermos\":true}")
         .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.mensagem").value("Este e-mail já está cadastrado"));
+        .andExpect(jsonPath("$.mensagem").value("Este e-mail já está cadastrado"))
+        .andExpect(jsonPath("$.codigo").value("EMAIL_JA_CADASTRADO"));
   }
 
   @Test
@@ -125,11 +130,14 @@ class AuthResourceTest {
   @Test
   void deveDevolver401NoLoginInvalido() throws Exception {
     when(authService.login(any(), any()))
-        .thenThrow(new ErroAutenticacaoException("E-mail ou senha inválidos"));
+        .thenThrow(
+            new ErroAutenticacaoException(
+                CodigoErro.CREDENCIAIS_INVALIDAS, "E-mail ou senha inválidos"));
 
     postar("login", "{\"email\":\"ana@email.com\",\"senha\":\"errada\"}")
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.mensagem").value("E-mail ou senha inválidos"));
+        .andExpect(jsonPath("$.mensagem").value("E-mail ou senha inválidos"))
+        .andExpect(jsonPath("$.codigo").value("CREDENCIAIS_INVALIDAS"));
   }
 
   @Test
@@ -160,6 +168,7 @@ class AuthResourceTest {
   void deveDevolver422ComTokenInvalido() throws Exception {
     doThrow(
             new RegraNegocioException(
+                CodigoErro.TOKEN_INVALIDO,
                 "Link de redefinição inválido ou expirado. Solicite um novo."))
         .when(recuperacaoService)
         .redefinir(any(), any());

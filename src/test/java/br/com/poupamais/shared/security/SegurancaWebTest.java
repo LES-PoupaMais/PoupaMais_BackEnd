@@ -10,6 +10,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import br.com.poupamais.shared.config.WebConfiguration;
+import br.com.poupamais.shared.exception.ErroPadraoController;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.RequestDispatcher;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
   SecurityConfiguration.class,
   JwtService.class,
   WebConfiguration.class,
+  ErroPadraoController.class,
   SegurancaWebTest.ControllerDeTeste.class
 })
 class SegurancaWebTest {
@@ -49,6 +53,7 @@ class SegurancaWebTest {
     mvc.perform(get("/api/privado"))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.status").value(401))
+        .andExpect(jsonPath("$.codigo").value("NAO_AUTENTICADO"))
         .andExpect(jsonPath("$.mensagem").value(containsString("Faça login novamente")));
   }
 
@@ -74,7 +79,8 @@ class SegurancaWebTest {
     mvc.perform(get("/api/nao-existe").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.mensagem").value("Recurso não encontrado"));
+        .andExpect(jsonPath("$.mensagem").value("Recurso não encontrado"))
+        .andExpect(jsonPath("$.codigo").value("NAO_ENCONTRADO"));
   }
 
   @Test
@@ -84,12 +90,28 @@ class SegurancaWebTest {
     mvc.perform(post("/api/privado").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
         .andExpect(status().isMethodNotAllowed())
         .andExpect(jsonPath("$.status").value(405))
-        .andExpect(jsonPath("$.mensagem").value("Método não permitido para este recurso."));
+        .andExpect(jsonPath("$.mensagem").value("Método não permitido para este recurso."))
+        .andExpect(jsonPath("$.codigo").value("METODO_NAO_PERMITIDO"));
   }
 
   @Test
   void rotaInexistenteSemTokenContinua401() throws Exception {
     mvc.perform(get("/api/nao-existe")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void erroForaDoMvcSaiNoPadraoComCodigoMesmoSemToken() throws Exception {
+    // Despacho de erro do servlet (ex.: 413 do servidor): passa pela segurança e sai com codigo
+    mvc.perform(
+            get("/error")
+                .with(r -> {
+                  r.setDispatcherType(DispatcherType.ERROR);
+                  r.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 413);
+                  return r;
+                }))
+        .andExpect(status().isPayloadTooLarge())
+        .andExpect(jsonPath("$.status").value(413))
+        .andExpect(jsonPath("$.codigo").value("ARQUIVO_GRANDE_DEMAIS"));
   }
 
   @Test

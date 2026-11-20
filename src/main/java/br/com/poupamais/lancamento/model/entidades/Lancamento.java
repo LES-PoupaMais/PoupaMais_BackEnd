@@ -2,6 +2,7 @@ package br.com.poupamais.lancamento.model.entidades;
 
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -138,8 +139,12 @@ public class Lancamento {
   }
 
   private RegraNegocioException transicaoInvalida(StatusLancamento novo) {
+    CodigoErro codigo =
+        status == StatusLancamento.DELETADO
+            ? CodigoErro.LANCAMENTO_NA_LIXEIRA
+            : CodigoErro.TRANSICAO_STATUS_INVALIDA;
     return new RegraNegocioException(
-        MSG_TRANSICAO_INVALIDA.formatted(nomeStatus(status), nomeStatus(novo)));
+        codigo, MSG_TRANSICAO_INVALIDA.formatted(nomeStatus(status), nomeStatus(novo)));
   }
 
   /** Troca as categorias vinculadas pelas informadas (repetidas contam uma vez). */

@@ -15,6 +15,7 @@ import br.com.poupamais.categoria.model.repositories.CategoriaRepository.Quantid
 import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.categoria.service.CategoriaComQuantidade;
 import br.com.poupamais.shared.domain.Periodo;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -65,7 +66,8 @@ class CategoriaServiceImplTest {
 
     assertThatThrownBy(() -> service.criar(USUARIO, "LAZER"))
         .isInstanceOf(ConflitoException.class)
-        .hasMessage("Já existe uma categoria com essa descrição");
+        .hasMessage("Já existe uma categoria com essa descrição")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_DUPLICADA);
     verify(repository, never()).saveAndFlush(any());
   }
 
@@ -80,7 +82,8 @@ class CategoriaServiceImplTest {
   void deveRecusarDescricaoVazia() {
     assertThatThrownBy(() -> service.criar(USUARIO, "   "))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A descrição da categoria é obrigatória");
+        .hasMessage("A descrição da categoria é obrigatória")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_INVALIDA);
     assertThatThrownBy(() -> service.criar(USUARIO, null))
         .isInstanceOf(RegraNegocioException.class);
   }
@@ -89,7 +92,8 @@ class CategoriaServiceImplTest {
   void deveRecusarDescricaoMaiorQue255() {
     assertThatThrownBy(() -> service.criar(USUARIO, "a".repeat(256)))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A descrição da categoria deve ter no máximo 255 caracteres");
+        .hasMessage("A descrição da categoria deve ter no máximo 255 caracteres")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_INVALIDA);
   }
 
   @Test
@@ -120,7 +124,8 @@ class CategoriaServiceImplTest {
 
     assertThatThrownBy(() -> service.editar(USUARIO, 9L, "X"))
         .isInstanceOf(RecursoNaoEncontradoException.class)
-        .hasMessage("Categoria não encontrada");
+        .hasMessage("Categoria não encontrada")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_NAO_ENCONTRADA);
   }
 
   @Test
@@ -160,7 +165,8 @@ class CategoriaServiceImplTest {
 
     assertThatThrownBy(() -> service.excluir(USUARIO, 5L))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Categoria vinculada a lançamentos, apenas inative");
+        .hasMessage("Categoria vinculada a lançamentos, apenas inative")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_VINCULADA);
     verify(repository, never()).delete(any());
   }
 
@@ -263,7 +269,8 @@ class CategoriaServiceImplTest {
 
     assertThatThrownBy(() -> service.validarAtivasDoUsuario(USUARIO, List.of(1L, 2L)))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A categoria \"Lazer\" está inativa e não pode ser usada");
+        .hasMessage("A categoria \"Lazer\" está inativa e não pode ser usada")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_INATIVA);
   }
 
   @Test

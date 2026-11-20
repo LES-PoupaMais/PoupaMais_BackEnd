@@ -1,5 +1,6 @@
 package br.com.poupamais.usuario.service.impl;
 
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.usuario.model.entidades.Usuario;
@@ -25,9 +26,11 @@ public class PrivacidadeServiceImpl implements PrivacidadeService {
     Usuario usuario =
         repository
             .findById(idUsuario)
-            .orElseThrow(() -> new ErroAutenticacaoException(PerfilServiceImpl.MSG_SESSAO));
+            .orElseThrow(() ->
+                new ErroAutenticacaoException(
+                    CodigoErro.NAO_AUTENTICADO, PerfilServiceImpl.MSG_SESSAO));
     if (senha == null || !passwordEncoder.matches(senha, usuario.getSenha())) {
-      throw new RegraNegocioException(MSG_SENHA_INCORRETA);
+      throw new RegraNegocioException(CodigoErro.SENHA_INCORRETA, MSG_SENHA_INCORRETA);
     }
     // RN016: DELETE físico; foto, tokens, categorias e lançamentos caem em cascata no banco
     repository.delete(usuario);

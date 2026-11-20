@@ -11,6 +11,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import br.com.poupamais.categoria.publico.CategoriaFacade;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -72,7 +73,8 @@ class AuthServiceImplTest {
   void deveRecusarCadastroSemAceiteDosTermos() {
     assertThatThrownBy(() -> service.cadastrar("Ana", "ana@email.com", "123456", false))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("É preciso aceitar a Política de Privacidade");
+        .hasMessage("É preciso aceitar a Política de Privacidade")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.ACEITE_TERMOS_OBRIGATORIO);
     verifyNoInteractions(repository, categoriaFacade);
   }
 
@@ -80,7 +82,8 @@ class AuthServiceImplTest {
   void deveRecusarSenhaCurtaNoCadastro() {
     assertThatThrownBy(() -> service.cadastrar("Ana", "ana@email.com", "12345", true))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A senha deve ter entre 6 e 72 caracteres");
+        .hasMessage("A senha deve ter entre 6 e 72 caracteres")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.DADOS_CONTA_INVALIDOS);
   }
 
   @Test
@@ -89,7 +92,8 @@ class AuthServiceImplTest {
 
     assertThatThrownBy(() -> service.cadastrar("Ana", "ANA@email.com", "123456", true))
         .isInstanceOf(ConflitoException.class)
-        .hasMessage("Este e-mail já está cadastrado");
+        .hasMessage("Este e-mail já está cadastrado")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.EMAIL_JA_CADASTRADO);
     verify(repository, never()).saveAndFlush(any());
   }
 
@@ -122,10 +126,12 @@ class AuthServiceImplTest {
 
     assertThatThrownBy(() -> service.login("ana@email.com", "errada"))
         .isInstanceOf(ErroAutenticacaoException.class)
-        .hasMessage("E-mail ou senha inválidos");
+        .hasMessage("E-mail ou senha inválidos")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CREDENCIAIS_INVALIDAS);
     assertThatThrownBy(() -> service.login("outro@email.com", "123456"))
         .isInstanceOf(ErroAutenticacaoException.class)
-        .hasMessage("E-mail ou senha inválidos");
+        .hasMessage("E-mail ou senha inválidos")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CREDENCIAIS_INVALIDAS);
     assertThatThrownBy(() -> service.login("ana@email.com", null))
         .isInstanceOf(ErroAutenticacaoException.class);
     verifyNoInteractions(jwtService);
