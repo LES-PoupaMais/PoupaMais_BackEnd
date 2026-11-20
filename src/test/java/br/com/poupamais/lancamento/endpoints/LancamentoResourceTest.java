@@ -561,4 +561,30 @@ class LancamentoResourceTest {
         .andExpect(jsonPath("$.status").value(406))
         .andExpect(jsonPath("$.codigo").value("TIPO_RESPOSTA_NAO_ACEITO"));
   }
+
+  /** Erro antes de escrever a resposta: sai com o status e o código dele, em JSON (não 406). */
+  @Test
+  void erroComAcceptNaoJsonDeveSairEmJsonComCodigo() throws Exception {
+    when(service.buscar(USUARIO, 99L))
+        .thenThrow(
+            new RecursoNaoEncontradoException(
+                CodigoErro.LANCAMENTO_NAO_ENCONTRADO, "Lançamento não encontrado"));
+
+    for (String accept : List.of("text/csv", "application/octet-stream")) {
+      mvc.perform(autenticado(get("/api/lancamentos/99")).accept(accept))
+          .andExpect(status().isNotFound())
+          .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+          .andExpect(jsonPath("$.status").value(404))
+          .andExpect(jsonPath("$.codigo").value("LANCAMENTO_NAO_ENCONTRADO"));
+      mvc.perform(
+              autenticado(post("/api/lancamentos"))
+                  .contentType(MediaType.APPLICATION_JSON)
+                  .content("{}")
+                  .accept(accept))
+          .andExpect(status().isBadRequest())
+          .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+          .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
+          .andExpect(jsonPath("$.erros").isArray());
+    }
+  }
 }

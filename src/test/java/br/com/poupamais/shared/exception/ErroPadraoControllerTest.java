@@ -6,6 +6,7 @@ import jakarta.servlet.RequestDispatcher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 
@@ -35,6 +36,8 @@ class ErroPadraoControllerTest {
     assertThat(resposta.getBody().status()).isEqualTo(esperado);
     assertThat(resposta.getBody().codigo()).isEqualTo(codigo);
     assertThat(resposta.getBody().mensagem()).isEqualTo(ErroPadraoController.mensagem(codigo));
+    // Content-Type fixo: o Accept do cliente (ex.: text/csv) não tira o JSON do erro
+    assertThat(resposta.getHeaders().getContentType()).isEqualTo(MediaType.APPLICATION_JSON);
   }
 
   @Test

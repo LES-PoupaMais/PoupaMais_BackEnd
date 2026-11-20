@@ -18,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -80,8 +79,9 @@ public class ArquivoResource {
 
   @ExceptionHandler(FormatoInvalidoException.class)
   public ResponseEntity<ErroResponse> formatoInvalido(FormatoInvalidoException ex) {
-    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-        .body(new ErroResponse(400, CodigoErro.FORMATO_EXPORTACAO_INVALIDO, ex.getMessage()));
+    // JSON mesmo com Accept: text/csv (quem baixa o arquivo costuma pedir só o formato do anexo)
+    return new ErroResponse(400, CodigoErro.FORMATO_EXPORTACAO_INVALIDO, ex.getMessage())
+        .comoResposta();
   }
 
   private static ResponseEntity<byte[]> anexo(String nome, String contentType, byte[] conteudo) {

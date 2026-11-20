@@ -252,6 +252,36 @@ class GlobalExceptionHandlerTest {
   }
 
   /**
+   * Erro de qualquer handler, pedido com um {@code Accept} que exclui JSON (ex.: quem baixa um
+   * CSV), sai mesmo assim em JSON com o status do erro e {@code codigo} — não vira 406 nem 500.
+   */
+  @Test
+  void todoErroSaiEmJsonComCodigoMesmoComAcceptNaoJson() throws Exception {
+    for (String accept : List.of("text/csv", "application/octet-stream", "text/plain")) {
+      for (String caso : List.of("401", "403", "404", "409", "422", "upload", "500")) {
+        mvc.perform(get("/teste/" + caso).accept(accept))
+            .andExpect(status().is(caso.equals("upload") ? 422 : Integer.parseInt(caso)))
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.codigo").isNotEmpty());
+      }
+      mvc.perform(
+              post("/teste").contentType(MediaType.APPLICATION_JSON).content("{}").accept(accept))
+          .andExpect(status().isBadRequest())
+          .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+          .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
+          .andExpect(jsonPath("$.erros[0].campo").value("nome"));
+      mvc.perform(get("/teste/numero/abc").accept(accept))
+          .andExpect(status().isBadRequest())
+          .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+          .andExpect(jsonPath("$.codigo").value("PARAMETRO_INVALIDO"));
+      mvc.perform(get("/rota/que/nao/existe").accept(accept))
+          .andExpect(status().isNotFound())
+          .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+          .andExpect(jsonPath("$.codigo").value("NAO_ENCONTRADO"));
+    }
+  }
+
+  /**
    * Nenhum caminho de erro sai sem {@code codigo}: todo handler devolve {@link ErroResponse} (que
    * recusa código nulo) e cada caso de erro do controller de teste responde com {@code codigo}.
    */
