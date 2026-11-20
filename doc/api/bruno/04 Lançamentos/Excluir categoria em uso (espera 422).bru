@@ -14,4 +14,13 @@ tests {
   test("Status esperado (422)", function () {
     expect([422]).to.include(res.status);
   });
+  if (res.status >= 400) {
+    test("Código de erro (CATEGORIA_VINCULADA)", function () {
+      expect(res.body.codigo).to.eql("CATEGORIA_VINCULADA");
+    });
+  }
+}
+
+docs {
+  **422** com `codigo` `CATEGORIA_VINCULADA`: categoria com lançamentos só pode ser inativada.
 }

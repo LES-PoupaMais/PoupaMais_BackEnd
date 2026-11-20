@@ -14,6 +14,8 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
 - **Fonte da verdade:** este `CLAUDE.md`. Os `.md` do DVP em `../Documentação/md/` são uma versão anterior; se divergirem, vale este arquivo.
 - **18/11/2026:** RN001 revista (lançamento com data completa; auditoria com hora). Ver entrega 15 do "Plano de entregas".
 - **19/11/2026:** RN006 revista (`status` no POST/PUT; restaurar volta ao status anterior). Ver entrega 19 do "Plano de entregas".
+- **20/11/2026 (contrato v1.2.0, ainda não lançada):** toda resposta de erro tem `codigo` estável (tabela em "Padrão de erro") e cada
+  item de `maioresDespesas` do dashboard traz `data`. Ver entrega 20 do "Plano de entregas".
 - **Escopo atual do backend: concluído.** Não há deploy: a apresentação e a entrega mostram o sistema **rodando localmente**
   (`docker compose up -d --build`; ver "Demonstração local" no README). Próximo passo do projeto: o front (design novo + telas).
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
@@ -93,7 +95,7 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 | `shared.security.SenhaAlteradaConsulta` | `Optional<SituacaoUsuario> situacao(Long idUsuario)`; record `SituacaoUsuario(Instant senhaAlteradaEm)` (`null` = nunca trocou) | **Implementada no `usuario` (`SessaoUsuarioConsulta`, 1 consulta JPQL por requisição autenticada).** Vazio = usuário não existe mais → o filtro **recusa** o token. Também recusa `iat` < `senha_alterada_em` (comparação em segundos). Sem bean (ex.: `@WebMvcTest` de outro módulo) o filtro não checa. |
 | `SecurityConfiguration` | propriedade `poupamais.swagger-habilitado` (`SWAGGER_HABILITADO`, padrão `true`) | `false` desliga o springdoc (`springdoc.api-docs.enabled`/`swagger-ui.enabled`) e tira as rotas do Swagger da lista pública (passam a exigir token). |
 | `SecurityConfiguration` | bean `PasswordEncoder` (BCrypt) | Injete nos services; nunca instancie outro. |
-| `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401 | Mensagens em português prontas para o usuário. |
+| `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401, todas com construtor `(CodigoErro codigo, String mensagem)` | Mensagens em português prontas para o usuário; o `codigo` (enum `CodigoErro`, obrigatório, nunca `null`) vai no campo `codigo` da resposta. Código novo: constante no `CodigoErro` + linha na tabela de "Padrão de erro" + teste (o `CodigoErroTest` reprova código sem teste). |
 | `notificacao.publico.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.publico.excecoes.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
 | `lancamento.publico.LancamentoFacade` | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records em `publico.dto` (`LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`); enums em `publico.enums` (`TipoLancamento`, `StatusLancamento`) | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
 | `categoria.publico.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `listarTodas(idUsuario)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarPorDescricao(idUsuario, descricao)` (Optional, não cria), `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `publico.dto.CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. `listarTodas`: somente leitura, ativas e inativas (ativas primeiro, depois alfabética), usada pela exportação de dados (RF016). |
@@ -175,6 +177,7 @@ Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.
 - `despesasPorCategoria`: parte = valor / N truncada em centavos; a sobra vai para a categoria de **menor id**. Ordem: valor desc, empate
   por `categoriaId` asc. Despesa sem categoria (não deveria existir) entra como `categoriaId: null`, "Sem categoria", para a soma fechar.
 - `maioresDespesas`: top 5 por valor desc; **empate: menor id primeiro** (o cadastrado antes). `categorias` = nomes em ordem de id.
+  Cada item traz `data` (data do lançamento, ISO `"AAAA-MM-DD"`, como na response de lançamento; v1.2.0); ela não entra na ordenação nem no peso.
 
 ## Design patterns (onde e por quê)
 
@@ -474,7 +477,7 @@ Response de lançamento:
     { "mes": 5, "ano": 2026, "receitas": 0, "despesas": 0, "saldo": 0 }
   ],
   "despesasPorCategoria": [{ "categoriaId": 2, "descricao": "Moradia", "valor": 2100.0 }],
-  "maioresDespesas": [{ "id": 9, "descricao": "Aluguel", "valor": 2100.0, "categorias": ["Moradia"] }],
+  "maioresDespesas": [{ "id": 9, "descricao": "Aluguel", "data": "2026-08-05", "valor": 2100.0, "categorias": ["Moradia"] }],
   "pesoMaioresDespesas": { "valor": 2100.0, "percentual": 43.93 }
 }
 ```
@@ -483,18 +486,74 @@ Response de lançamento:
 `pesoMaioresDespesas` vem sempre: `valor` = soma das `maioresDespesas`; `percentual` = valor / `despesas` × 100 (2 casas, `HALF_UP`),
 `null` se o mês não tem despesa ativa (aí `valor` = 0, como a `taxaGasto` sem receita).
 
-**Padrão de erro** (RNF007, mensagens em português prontas para exibir):
+**Padrão de erro** (RNF007, mensagens em português prontas para exibir). Desde a **v1.2.0**, **toda** resposta de erro traz
+`codigo`: string estável em MAIÚSCULAS_COM_UNDERSCORE, para o front decidir o que fazer sem depender do texto. A `mensagem`
+continua sendo o texto pronto para exibir (os textos não mudaram); `erros[]` só vem em `VALIDACAO`.
 
 ```json
 {
   "status": 400,
+  "codigo": "VALIDACAO",
   "mensagem": "Dados inválidos",
   "erros": [{ "campo": "valor", "mensagem": "O valor deve ser maior que zero" }]
 }
 ```
 
-400 validação · 401 não autenticado · 404 não encontrado/não pertence ao usuário · 405 método não suportado · 409 duplicidade · 422 regra de negócio · 500 genérico (sem stacktrace).
+400 validação · 401 não autenticado · 403 acesso negado · 404 não encontrado/não pertence ao usuário · 405 método não suportado · 409 duplicidade · 415 tipo de conteúdo não suportado · 422 regra de negócio · 500 genérico (sem stacktrace).
 Rota inexistente (com token válido) → 404 `"Recurso não encontrado"`; método HTTP não suportado → 405 `"Método não permitido para este recurso."`.
+
+Como funciona: os códigos ficam num lugar só, o enum `shared.exception.CodigoErro` (`shared` é módulo aberto, todos usam). Cada
+exceção de negócio recebe o seu no construtor; os erros genéricos têm código padrão no `GlobalExceptionHandler`; o 401 do
+`ErroAutenticacaoEntryPoint` e o 403 do `ErroAcessoNegadoHandler` (Spring Security) e o `/error` do servlet (`ErroPadraoController`,
+para o que não passa pelo MVC: falha num filtro, recusa do servidor como 413) também saem no `ErroResponse` com `codigo`.
+`ErroResponse` recusa `codigo` nulo. A tabela também está no Swagger (descrição da API, gerada do enum). Nunca renomeie um código.
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| `VALIDACAO` | 400 | Bean Validation no corpo/parâmetros (`erros[]`), inclusive data que não existe no corpo (`"2026-02-31"`) |
+| `CORPO_INVALIDO` | 400 | Corpo ilegível: JSON quebrado, valor fora do enum (`tipo`, `status`), tipo errado |
+| `FORMATO_EXPORTACAO_INVALIDO` | 400 | `GET /lancamentos/exportar` com `formato` ausente ou diferente de `csv`/`xlsx` |
+| `REQUISICAO_INVALIDA` | 400 (e outros 4xx) | Requisição recusada antes do MVC (`/error` com 400 ou um 4xx sem código próprio) |
+| `NAO_AUTENTICADO` | 401 | Sem token, token inválido/expirado, sessão derrubada (troca de senha, conta excluída) |
+| `CREDENCIAIS_INVALIDAS` | 401 | Login com e-mail inexistente ou senha errada |
+| `ACESSO_NEGADO` | 403 | Spring Security negou acesso a usuário autenticado (hoje não há papéis; reservado) |
+| `NAO_ENCONTRADO` | 404 | Rota inexistente |
+| `CATEGORIA_NAO_ENCONTRADA` | 404 | Categoria inexistente ou de outro usuário (CRUD, `categoriaIds` do lançamento, filtro `categoriaId`) |
+| `LANCAMENTO_NAO_ENCONTRADO` | 404 | Lançamento inexistente ou de outro usuário |
+| `FOTO_NAO_ENCONTRADA` | 404 | `GET /usuarios/me/foto` sem foto |
+| `METODO_NAO_PERMITIDO` | 405 | Método HTTP não suportado na rota |
+| `EMAIL_JA_CADASTRADO` | 409 | Cadastro com e-mail que já existe |
+| `CATEGORIA_DUPLICADA` | 409 | `POST`/`PUT` de categoria com descrição que já existe (sem diferenciar maiúsculas) |
+| `TIPO_CONTEUDO_NAO_SUPORTADO` | 415 | `Content-Type` não aceito pela rota (ex.: `text/plain` num `POST` JSON). Antes da v1.2.0 saía 500 |
+| `ARQUIVO_GRANDE_DEMAIS` | 422 (413 se o servidor recusar antes) | Upload acima de 2 MB: CSV, foto ou limite do multipart |
+| `ARQUIVO_VAZIO` | 422 | Importação sem o campo `arquivo`, arquivo vazio ou sem linhas de dados |
+| `ARQUIVO_INVALIDO` | 422 | Arquivo que não é texto UTF-8 (ou tem byte nulo) |
+| `CABECALHO_INVALIDO` | 422 | CSV sem o cabeçalho ou com colunas obrigatórias faltando |
+| `ARQUIVO_LINHAS_DEMAIS` | 422 | CSV com mais de 5.000 linhas de dados |
+| `SEM_DADOS_EXPORTACAO` | 422 | Exportação sem lançamentos no filtro |
+| `ACEITE_TERMOS_OBRIGATORIO` | 422 | Cadastro sem aceite chegando ao service (na API o DTO barra antes com `400 VALIDACAO`) |
+| `DADOS_CONTA_INVALIDOS` | 422 | Nome ou senha fora das regras chegando ao service (na API o DTO costuma barrar antes com `400`) |
+| `SENHA_ATUAL_INCORRETA` | 422 | Troca de senha com a senha atual errada |
+| `SENHA_IGUAL_A_ATUAL` | 422 | Troca de senha com a nova igual à atual |
+| `SENHA_INCORRETA` | 422 | Exclusão de conta com a senha errada |
+| `TOKEN_INVALIDO` | 422 | `redefinir-senha` com link inválido, expirado ou já usado |
+| `FOTO_TIPO_INVALIDO` | 422 | Foto que não é JPG/PNG/WEBP pelo conteúdo, ou sem o campo `foto` |
+| `CATEGORIA_INVALIDA` | 422 | Descrição de categoria vazia ou > 255 chegando ao service |
+| `CATEGORIA_INATIVA` | 422 | Categoria inativa usada em lançamento novo/editado |
+| `CATEGORIA_VINCULADA` | 422 | `DELETE` de categoria com lançamentos (inclusive DELETADO) |
+| `LANCAMENTO_INVALIDO` | 422 | RN001 no `LancamentoValidator` (ex.: data fora de 01/01/2000–31/12/2100, valor arredondado ≤ 0) |
+| `LANCAMENTO_NA_LIXEIRA` | 422 | `PUT` ou `PATCH /status` num lançamento DELETADO |
+| `LANCAMENTO_JA_EXCLUIDO` | 422 | `DELETE` de lançamento que já está na lixeira |
+| `LANCAMENTO_NAO_EXCLUIDO` | 422 | `restaurar` de lançamento que não está na lixeira |
+| `STATUS_INVALIDO` | 422 | `PATCH /status` com `DELETADO` ou sem status (no POST/PUT o DTO barra antes com `400 VALIDACAO`) |
+| `TRANSICAO_STATUS_INVALIDA` | 422 | Transição recusada pela máquina de estados (defesa: pela API, os casos acima chegam antes) |
+| `ERRO_INTERNO` | 500 | Erro inesperado (sem detalhes internos) |
+
+Exemplo (antes da v1.2.0 não havia `codigo`):
+
+```json
+{ "status": 422, "codigo": "CATEGORIA_VINCULADA", "mensagem": "Categoria vinculada a lançamentos, apenas inative" }
+```
 
 ## Formato CSV (RN012 no DVP)
 
@@ -627,7 +686,8 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | 16 | `pesoMaioresDespesas` no dashboard (Q4) | ✅ branch `feat/peso-maiores-despesas` (também incluída na 15), aguardando PR | Soma das 5 maiores e % sobre as despesas do mês (2 casas, `HALF_UP`; `null` sem despesa) |
 | 17 | Paginação do `GET /lancamentos` (Q3) | ✅ branch `feat/paginacao-lancamentos` (sobre a 15), aguardando PR | `pagina`/`tamanho` (padrão 12, máx. 100); `{itens,pagina,tamanho,total,totalPaginas}`; exportação e Facade sem paginar. Pendência: `pagina=abc`/`mes=abc` dão 400 com mensagem do Spring em inglês |
 | 18 | `quantidadeLancamentos` em `GET /categorias?mes&ano` (Q2) | ✅ branch `feat/categoria-quantidade-lancamentos` (sobre a 17), aguardando PR | Query nativa agregada no `CategoriaRepository` (evita ciclo categoria→lancamento). Pendência: validação de `mes`/`ano` repetida em `CategoriaListagemParams` e `DashboardParams` (juntar num `PeriodoParams` em `shared`) |
-| 19 | `status` no POST/PUT de lançamento + restaurar ao status anterior (RN006 revista em 19/11/2026) | ✅ branch `feat/status-no-lancamento`, aguardando PR | `status` opcional (ATIVO/INATIVO; DELETADO → 400) no `LancamentoRequest`; `V3__lancamento_status_anterior.sql`; `Lancamento.restaurar()`; o `PATCH /status` não tira mais da lixeira (antes, `INATIVO` num DELETADO restaurava); Swagger e coleções. Front: criar/editar com `status` numa chamada e "Desfazer" = `DELETE` imediato + `restaurar`; espelhar o contrato no `CLAUDE.md` do front |
+| 19 | `status` no POST/PUT de lançamento + restaurar ao status anterior (RN006 revista em 19/11/2026; contrato v1.2.0) | ✅ branch `feat/status-no-lancamento`, aguardando PR | `status` opcional (ATIVO/INATIVO; DELETADO → 400) no `LancamentoRequest`; `V3__lancamento_status_anterior.sql`; `Lancamento.restaurar()`; o `PATCH /status` não tira mais da lixeira (antes, `INATIVO` num DELETADO restaurava); Swagger e coleções. Front: criar/editar com `status` numa chamada e "Desfazer" = `DELETE` imediato + `restaurar`; espelhar o contrato no `CLAUDE.md` do front |
+| 20 | Contrato v1.2.0 (junto da 19): `codigo` em toda resposta de erro + `data` em `maioresDespesas` | ✅ branch `feat/codigos-erro-e-data-maiores`, aguardando PR | Enum `CodigoErro` em `shared.exception` (tabela em "Padrão de erro" e no Swagger, com `info.version` 1.2.0); exceções com código no construtor; `GlobalExceptionHandler` com códigos padrão e novos 415 (antes caía no 500) e 403; `ErroAcessoNegadoHandler`, `ErroPadraoController` (`/error`, despacho de erro liberado na segurança); `MaiorDespesa.data` (ordem e peso iguais); `CodigoErroTest` reprova código sem teste; coleções testam o `codigo` dos casos de erro. Front: espelhar o contrato no `CLAUDE.md` do front (não feito nesta branch). Pendências: (a) a recusa de CORS do Spring (`403` "Invalid CORS request", texto puro) não sai no padrão nem tem `codigo` (o navegador não chama a API, BFF); (b) `@PathVariable` não numérico (`/api/lancamentos/abc`) e parâmetro obrigatório ausente caem no `500 ERRO_INTERNO` em vez de `400`; (c) `406` (Accept não atendível) também cai no 500 |
 | 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ na branch `chore/fechamento-backend`, aguardando PR | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.

@@ -43,11 +43,12 @@ VARIAVEIS = {
 
 
 def r(pasta, nome, metodo, caminho, *, auth=True, query=None, json_body=None, multipart=None,
-      status=(200,), scripts=(), doc=""):
+      status=(200,), scripts=(), doc="", codigo=None):
+    """`codigo`: código de erro esperado (campo `codigo` da resposta) quando o status for >= 400."""
     return {
         "pasta": pasta, "nome": nome, "metodo": metodo, "caminho": caminho, "auth": auth,
         "query": query or [], "json": json_body, "multipart": multipart, "status": status,
-        "scripts": scripts, "doc": doc.strip(),
+        "scripts": scripts, "doc": doc.strip(), "codigo": codigo,
     }
 
 
@@ -68,14 +69,18 @@ REQUISICOES = [
     # 01 · Autenticação ---------------------------------------------------------------------
     r("01 Autenticação", "Cadastro", "POST", "/api/auth/cadastro", auth=False,
       json_body='{\n  "nome": "{{nome}}",\n  "email": "{{email}}",\n  "senha": "{{senha}}",\n  "aceiteTermos": true\n}',
-      status=(201, 409),
-      doc="Cria o usuário das variáveis `email`/`senha`. **409** se o e-mail já existir (normal ao rodar de novo)."),
+      status=(201, 409), codigo="EMAIL_JA_CADASTRADO",
+      doc="Cria o usuário das variáveis `email`/`senha`. **409** (`EMAIL_JA_CADASTRADO`) se o e-mail já existir "
+          "(normal ao rodar de novo)."),
     r("01 Autenticação", "Login", "POST", "/api/auth/login", auth=False,
       json_body='{\n  "email": "{{email}}",\n  "senha": "{{senha}}"\n}',
       scripts=[("salvar", "token", "token")],
       doc="Guarda o JWT na variável `token`; as demais requisições usam `Authorization: Bearer {{token}}`."),
     r("01 Autenticação", "Login com senha errada (espera 401)", "POST", "/api/auth/login", auth=False,
-      json_body='{\n  "email": "{{email}}",\n  "senha": "senha-errada"\n}', status=(401,)),
+      json_body='{\n  "email": "{{email}}",\n  "senha": "senha-errada"\n}', status=(401,),
+      codigo="CREDENCIAIS_INVALIDAS",
+      doc="Toda resposta de erro traz `codigo` (estável, o front decide por ele) além da `mensagem`: "
+          "aqui, `CREDENCIAIS_INVALIDAS`."),
 
     # 02 · Perfil ---------------------------------------------------------------------------
     r("02 Perfil", "Meu perfil", "GET", "/api/usuarios/me"),
@@ -123,7 +128,8 @@ REQUISICOES = [
           "e `dataExclusao` com hora (ISO-8601, UTC)."),
     r("04 Lançamentos", "Criar lançamento inválido (espera 400)", "POST", "/api/lancamentos",
       json_body='{\n  "descricao": "",\n  "tipo": "DESPESA",\n  "data": "2026-02-31",\n  "valor": 0,\n  "categoriaIds": []\n}',
-      status=(400,), doc="Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`. "
+      status=(400,), codigo="VALIDACAO",
+      doc="Mostra o formato de erro: `{status, codigo, mensagem, erros: [{campo, mensagem}]}` (`codigo` `VALIDACAO`). "
           "`2026-02-31` não existe: **400** com erro no campo `data`."),
     r("04 Lançamentos", "Criar lançamento já inativo", "POST", "/api/lancamentos",
       json_body=LANCAMENTO.replace('"categoriaIds"', '"status": "INATIVO",\n  "categoriaIds"'),
@@ -131,9 +137,11 @@ REQUISICOES = [
           "mesma chamada (sem PATCH depois)."),
     r("04 Lançamentos", "Criar lançamento com status DELETADO (espera 400)", "POST", "/api/lancamentos",
       json_body=LANCAMENTO.replace('"categoriaIds"', '"status": "DELETADO",\n  "categoriaIds"'),
-      status=(400,), doc="`DELETADO` não vai no corpo (a lixeira é pelo DELETE): **400** com erro no campo `status`."),
+      status=(400,), codigo="VALIDACAO",
+      doc="`DELETADO` não vai no corpo (a lixeira é pelo DELETE): **400** (`VALIDACAO`) com erro no campo `status`."),
     r("04 Lançamentos", "Excluir categoria em uso (espera 422)", "DELETE", "/api/categorias/{{categoriaId}}",
-      status=(422,)),
+      status=(422,), codigo="CATEGORIA_VINCULADA",
+      doc="**422** com `codigo` `CATEGORIA_VINCULADA`: categoria com lançamentos só pode ser inativada."),
     r("04 Lançamentos", "Listar lançamentos", "GET", "/api/lancamentos",
       query=FILTROS + [("pagina", "0", True), ("tamanho", "12", True)],
       doc="Filtros opcionais (ative na aba Params). Sem `status` = ATIVO + INATIVO; `status=DELETADO` = lixeira. "
@@ -168,7 +176,8 @@ REQUISICOES = [
     # 06 · Dashboard ------------------------------------------------------------------------
     r("06 Dashboard", "Dashboard do mês", "GET", "/api/dashboard",
       query=[("mes", "{{mes}}", True), ("ano", "{{ano}}", True)],
-      doc="Sem `mes`/`ano` usa o mês atual. Só considera lançamentos ATIVOS."),
+      doc="Sem `mes`/`ano` usa o mês atual. Só considera lançamentos ATIVOS. Cada item de `maioresDespesas` "
+          "traz `{id, descricao, data, valor, categorias}` (`data` em ISO `AAAA-MM-DD`)."),
 
     # 07 · Recuperação de senha (manual) ----------------------------------------------------
     r("07 Recuperação de senha (manual)", "Pedir link de redefinição", "POST", "/api/auth/recuperar-senha",
@@ -176,9 +185,9 @@ REQUISICOES = [
       doc="Sempre 202, exista ou não o e-mail. O e-mail chega no Mailpit: http://localhost:8025"),
     r("07 Recuperação de senha (manual)", "Redefinir senha", "POST", "/api/auth/redefinir-senha",
       auth=False, json_body='{\n  "token": "{{tokenRedefinicao}}",\n  "novaSenha": "{{senha}}"\n}',
-      status=(204, 422),
+      status=(204, 422), codigo="TOKEN_INVALIDO",
       doc="Copie o `token` do link recebido no Mailpit para a variável `tokenRedefinicao`. "
-          "Sem token válido a resposta é **422** (é o que acontece ao rodar a coleção inteira)."),
+          "Sem token válido a resposta é **422** com `codigo` `TOKEN_INVALIDO` (é o que acontece ao rodar a coleção inteira)."),
 
     # 08 · Privacidade (LGPD) ---------------------------------------------------------------
     r("08 Privacidade (LGPD)", "Baixar meus dados", "GET", "/api/usuarios/me/dados"),
@@ -203,6 +212,12 @@ def _postman_script(req):
     linhas.append(f'pm.test("Status esperado ({esperado})", function () {{')
     linhas.append(f"  pm.expect([{esperado}]).to.include(pm.response.code);")
     linhas.append("});")
+    if req["codigo"]:
+        linhas.append("if (pm.response.code >= 400) {")
+        linhas.append(f'  pm.test("Código de erro ({req["codigo"]})", function () {{')
+        linhas.append(f'    pm.expect(pm.response.json().codigo).to.eql("{req["codigo"]}");')
+        linhas.append("  });")
+        linhas.append("}")
     if req["scripts"]:
         linhas.append("if (pm.response.code < 300) {")
         for s in req["scripts"]:
@@ -333,8 +348,13 @@ def bruno():
             linhas.append("}")
             partes.append(_bloco("script:post-response", linhas))
         esperado = ", ".join(str(s) for s in req["status"])
-        partes.append(_bloco("tests", [f'test("Status esperado ({esperado})", function () {{',
-                                       f"  expect([{esperado}]).to.include(res.status);", "});"]))
+        testes = [f'test("Status esperado ({esperado})", function () {{',
+                  f"  expect([{esperado}]).to.include(res.status);", "});"]
+        if req["codigo"]:
+            testes += ["if (res.status >= 400) {",
+                       f'  test("Código de erro ({req["codigo"]})", function () {{',
+                       f'    expect(res.body.codigo).to.eql("{req["codigo"]}");', "  });", "}"]
+        partes.append(_bloco("tests", testes))
         if req["doc"]:
             partes.append(_bloco("docs", req["doc"].split("\n")))
         (pasta / f"{_arquivo_seguro(req['nome'])}.bru").write_text("\n".join(partes), encoding="utf-8")

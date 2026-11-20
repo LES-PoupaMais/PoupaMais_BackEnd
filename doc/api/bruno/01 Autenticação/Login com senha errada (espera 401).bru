@@ -21,4 +21,13 @@ tests {
   test("Status esperado (401)", function () {
     expect([401]).to.include(res.status);
   });
+  if (res.status >= 400) {
+    test("Código de erro (CREDENCIAIS_INVALIDAS)", function () {
+      expect(res.body.codigo).to.eql("CREDENCIAIS_INVALIDAS");
+    });
+  }
+}
+
+docs {
+  Toda resposta de erro traz `codigo` (estável, o front decide por ele) além da `mensagem`: aqui, `CREDENCIAIS_INVALIDAS`.
 }
