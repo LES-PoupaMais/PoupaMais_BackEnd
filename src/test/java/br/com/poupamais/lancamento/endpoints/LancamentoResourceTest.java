@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -537,5 +538,27 @@ class LancamentoResourceTest {
 
     mvc.perform(autenticado(post("/api/lancamentos/1/restaurar")))
         .andExpect(status().isUnprocessableEntity());
+  }
+
+  @Test
+  void deveDevolver400ComParametroInvalidoParaIdNaoNumerico() throws Exception {
+    mvc.perform(autenticado(get("/api/lancamentos/abc")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("PARAMETRO_INVALIDO"))
+        .andExpect(
+            jsonPath("$.mensagem").value("Parâmetro inválido: id. Confira o valor enviado."));
+
+    verifyNoInteractions(service);
+  }
+
+  @Test
+  void deveDevolver406EmJsonQuandoOAcceptNaoAceitaJson() throws Exception {
+    when(service.buscar(USUARIO, 1L)).thenReturn(resumo(StatusLancamento.ATIVO));
+
+    mvc.perform(autenticado(get("/api/lancamentos/1")).accept("text/csv"))
+        .andExpect(status().isNotAcceptable())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.status").value(406))
+        .andExpect(jsonPath("$.codigo").value("TIPO_RESPOSTA_NAO_ACEITO"));
   }
 }

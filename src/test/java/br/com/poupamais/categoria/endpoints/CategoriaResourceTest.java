@@ -283,4 +283,15 @@ class CategoriaResourceTest {
                 .content("{\"ativa\":true}"))
         .andExpect(status().isNotFound());
   }
+
+  @Test
+  void deveDevolver400ComParametroInvalidoParaAtivaQueNaoEhBooleano() throws Exception {
+    mvc.perform(get("/api/categorias?ativa=talvez").header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("PARAMETRO_INVALIDO"))
+        .andExpect(
+            jsonPath("$.mensagem").value("Parâmetro inválido: ativa. Confira o valor enviado."));
+
+    verifyNoInteractions(service);
+  }
 }

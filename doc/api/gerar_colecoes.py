@@ -108,6 +108,11 @@ REQUISICOES = [
       doc="Sem `ativa` lista todas; `ativa=true` ou `false` filtra. Cada categoria traz `quantidadeLancamentos`: "
           "lançamentos ATIVO e INATIVO cuja `data` cai em `mes`/`ano` (sem eles, o mês atual; DELETADO não conta). "
           "`mes`/`ano` não filtram as categorias. Mês fora de 1–12 ou ano fora de 2000–2100 → **400**."),
+    r("03 Categorias", "Listar categorias com filtro inválido (espera 400)", "GET", "/api/categorias",
+      query=[("ativa", "talvez", True)], status=(400,), codigo="PARAMETRO_INVALIDO",
+      doc="Parâmetro de rota ou de query com tipo errado (`ativa=talvez`, `/api/lancamentos/abc`): **400** com "
+          "`codigo` `PARAMETRO_INVALIDO` e a mensagem com o nome do parâmetro. Parâmetro obrigatório ausente dá "
+          "**400** `PARAMETRO_AUSENTE`."),
     r("03 Categorias", "Editar categoria", "PUT", "/api/categorias/{{categoriaId}}",
       json_body='{\n  "descricao": "Supermercado {{$timestamp}}"\n}'),
     r("03 Categorias", "Inativar categoria", "PATCH", "/api/categorias/{{categoriaId}}/status",
