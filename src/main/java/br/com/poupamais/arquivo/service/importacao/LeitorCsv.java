@@ -1,5 +1,6 @@
 package br.com.poupamais.arquivo.service.importacao;
 
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.io.IOException;
 import java.io.StringReader;
@@ -39,10 +40,10 @@ public class LeitorCsv {
 
   public List<LinhaCsv> ler(byte[] bytes) {
     if (bytes == null || bytes.length == 0) {
-      throw new RegraNegocioException(MSG_VAZIO);
+      throw new RegraNegocioException(CodigoErro.ARQUIVO_VAZIO, MSG_VAZIO);
     }
     if (bytes.length > TAMANHO_MAXIMO) {
-      throw new RegraNegocioException(MSG_GRANDE);
+      throw new RegraNegocioException(CodigoErro.ARQUIVO_GRANDE_DEMAIS, MSG_GRANDE);
     }
     String texto = decodificar(bytes);
     if (!texto.isEmpty() && texto.charAt(0) == LayoutCsv.BOM) {
@@ -55,7 +56,7 @@ public class LeitorCsv {
       indiceCabecalho++;
     }
     if (indiceCabecalho == linhas.length) {
-      throw new RegraNegocioException(MSG_VAZIO);
+      throw new RegraNegocioException(CodigoErro.ARQUIVO_VAZIO, MSG_VAZIO);
     }
     Cabecalho cabecalho = lerCabecalho(linhas[indiceCabecalho]);
 
@@ -64,12 +65,12 @@ public class LeitorCsv {
       if (!linhas[i].isBlank()) {
         dados.add(new String[] {String.valueOf(i + 1), linhas[i]});
         if (dados.size() > MAXIMO_LINHAS) {
-          throw new RegraNegocioException(MSG_MUITAS_LINHAS);
+          throw new RegraNegocioException(CodigoErro.ARQUIVO_LINHAS_DEMAIS, MSG_MUITAS_LINHAS);
         }
       }
     }
     if (dados.isEmpty()) {
-      throw new RegraNegocioException(MSG_SEM_DADOS);
+      throw new RegraNegocioException(CodigoErro.ARQUIVO_VAZIO, MSG_SEM_DADOS);
     }
     return dados.stream().map(d -> separar(Integer.parseInt(d[0]), d[1], cabecalho)).toList();
   }
@@ -84,11 +85,11 @@ public class LeitorCsv {
               .decode(ByteBuffer.wrap(bytes))
               .toString();
       if (texto.indexOf('\0') >= 0) {
-        throw new RegraNegocioException(MSG_NAO_TEXTO);
+        throw new RegraNegocioException(CodigoErro.ARQUIVO_INVALIDO, MSG_NAO_TEXTO);
       }
       return texto;
     } catch (CharacterCodingException e) {
-      throw new RegraNegocioException(MSG_NAO_TEXTO);
+      throw new RegraNegocioException(CodigoErro.ARQUIVO_INVALIDO, MSG_NAO_TEXTO);
     }
   }
 
@@ -98,14 +99,14 @@ public class LeitorCsv {
   private static Cabecalho lerCabecalho(String linha) {
     List<String> nomes = campos(linha);
     if (nomes == null) {
-      throw new RegraNegocioException(MSG_CABECALHO);
+      throw new RegraNegocioException(CodigoErro.CABECALHO_INVALIDO, MSG_CABECALHO);
     }
     Map<String, Integer> posicoes = new HashMap<>();
     for (int i = 0; i < nomes.size(); i++) {
       posicoes.putIfAbsent(nomes.get(i).strip().toLowerCase(Locale.ROOT), i);
     }
     if (!posicoes.keySet().containsAll(LayoutCsv.COLUNAS)) {
-      throw new RegraNegocioException(MSG_CABECALHO);
+      throw new RegraNegocioException(CodigoErro.CABECALHO_INVALIDO, MSG_CABECALHO);
     }
     return new Cabecalho(posicoes, nomes.size());
   }

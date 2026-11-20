@@ -4,6 +4,7 @@ import br.com.poupamais.categoria.publico.CategoriaFacade;
 import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.lancamento.publico.LancamentoFacade;
 import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.usuario.endpoints.dto.DadosTitularResponse;
 import br.com.poupamais.usuario.endpoints.dto.DadosTitularResponse.CategoriaDoLancamento;
@@ -44,7 +45,9 @@ public class ExportacaoDadosServiceImpl implements ExportacaoDadosService {
     Usuario usuario =
         usuarioRepository
             .findById(idUsuario)
-            .orElseThrow(() -> new ErroAutenticacaoException(PerfilServiceImpl.MSG_SESSAO));
+            .orElseThrow(() ->
+                new ErroAutenticacaoException(
+                    CodigoErro.NAO_AUTENTICADO, PerfilServiceImpl.MSG_SESSAO));
     return new DadosTitularResponse(
         relogio.instant().truncatedTo(ChronoUnit.SECONDS),
         perfil(usuario),

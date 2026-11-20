@@ -25,8 +25,13 @@ tests {
   test("Status esperado (400)", function () {
     expect([400]).to.include(res.status);
   });
+  if (res.status >= 400) {
+    test("Código de erro (VALIDACAO)", function () {
+      expect(res.body.codigo).to.eql("VALIDACAO");
+    });
+  }
 }
 
 docs {
-  `DELETADO` não vai no corpo (a lixeira é pelo DELETE): **400** com erro no campo `status`.
+  `DELETADO` não vai no corpo (a lixeira é pelo DELETE): **400** (`VALIDACAO`) com erro no campo `status`.
 }

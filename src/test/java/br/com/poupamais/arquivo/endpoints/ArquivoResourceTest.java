@@ -21,6 +21,7 @@ import br.com.poupamais.lancamento.publico.dto.FiltroLancamento;
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.config.WebConfiguration;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.shared.security.JwtService;
 import br.com.poupamais.shared.security.SecurityConfiguration;
@@ -86,14 +87,15 @@ class ArquivoResourceTest {
   @Test
   void importarArquivoRecusadoDeveDar422() throws Exception {
     when(importacao.importar(eq(USUARIO), any()))
-        .thenThrow(new RegraNegocioException("Cabeçalho inválido"));
+        .thenThrow(new RegraNegocioException(CodigoErro.CABECALHO_INVALIDO, "Cabeçalho inválido"));
 
     mvc.perform(
             multipart("/api/lancamentos/importar")
                 .file(csv("a"))
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent())
-        .andExpect(jsonPath("$.mensagem").value("Cabeçalho inválido"));
+        .andExpect(jsonPath("$.mensagem").value("Cabeçalho inválido"))
+        .andExpect(jsonPath("$.codigo").value("CABECALHO_INVALIDO"));
   }
 
   @Test
@@ -103,7 +105,8 @@ class ArquivoResourceTest {
                 .file(csv(""))
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent())
-        .andExpect(jsonPath("$.mensagem").value(ArquivoResource.MSG_SEM_ARQUIVO));
+        .andExpect(jsonPath("$.mensagem").value(ArquivoResource.MSG_SEM_ARQUIVO))
+        .andExpect(jsonPath("$.codigo").value("ARQUIVO_VAZIO"));
     mvc.perform(multipart("/api/lancamentos/importar").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent());
     verifyNoInteractions(importacao);
@@ -162,20 +165,24 @@ class ArquivoResourceTest {
                 .param("formato", "pdf")
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.mensagem").value("Formato inválido. Use: csv ou xlsx"));
+        .andExpect(jsonPath("$.mensagem").value("Formato inválido. Use: csv ou xlsx"))
+        .andExpect(jsonPath("$.codigo").value("FORMATO_EXPORTACAO_INVALIDO"));
   }
 
   @Test
   void exportarSemDadosDeveDar422() throws Exception {
     when(exportacao.exportar(eq(USUARIO), eq("csv"), any()))
-        .thenThrow(new RegraNegocioException("Não há dados para exportação"));
+        .thenThrow(
+            new RegraNegocioException(
+                CodigoErro.SEM_DADOS_EXPORTACAO, "Não há dados para exportação"));
 
     mvc.perform(
             get("/api/lancamentos/exportar")
                 .param("formato", "csv")
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent())
-        .andExpect(jsonPath("$.mensagem").value("Não há dados para exportação"));
+        .andExpect(jsonPath("$.mensagem").value("Não há dados para exportação"))
+        .andExpect(jsonPath("$.codigo").value("SEM_DADOS_EXPORTACAO"));
   }
 
   @Test

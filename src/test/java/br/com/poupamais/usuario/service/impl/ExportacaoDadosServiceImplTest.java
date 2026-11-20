@@ -14,6 +14,7 @@ import br.com.poupamais.lancamento.publico.LancamentoFacade;
 import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.usuario.endpoints.dto.DadosTitularResponse;
 import br.com.poupamais.usuario.endpoints.dto.DadosTitularResponse.CategoriaDoLancamento;
@@ -169,7 +170,8 @@ class ExportacaoDadosServiceImplTest {
 
     assertThatThrownBy(() -> service.exportar(USUARIO))
         .isInstanceOf(ErroAutenticacaoException.class)
-        .hasMessage(PerfilServiceImpl.MSG_SESSAO);
+        .hasMessage(PerfilServiceImpl.MSG_SESSAO)
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.NAO_AUTENTICADO);
     verifyNoInteractions(categoriaFacade, lancamentoFacade);
   }
 }

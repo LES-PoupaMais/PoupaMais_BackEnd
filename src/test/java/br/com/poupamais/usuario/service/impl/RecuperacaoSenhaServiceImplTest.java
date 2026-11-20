@@ -15,6 +15,7 @@ import static org.mockito.Mockito.when;
 
 import br.com.poupamais.notificacao.publico.EmailFacade;
 import br.com.poupamais.notificacao.publico.excecoes.EnvioEmailException;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.usuario.model.entidades.TokenRecuperacaoSenha;
 import br.com.poupamais.usuario.model.entidades.Usuario;
@@ -148,7 +149,8 @@ class RecuperacaoSenhaServiceImplTest {
 
     assertThatThrownBy(() -> service.redefinir("abc", "123"))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("A senha deve ter entre 6 e 72 caracteres");
+        .hasMessage("A senha deve ter entre 6 e 72 caracteres")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.DADOS_CONTA_INVALIDOS);
     verify(tokens, never()).invalidarPendentes(any(), any());
   }
 
@@ -170,7 +172,8 @@ class RecuperacaoSenhaServiceImplTest {
   private void assertInvalido(String token) {
     assertThatThrownBy(() -> service.redefinir(token, "novaSenha"))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Link de redefinição inválido ou expirado. Solicite um novo.");
+        .hasMessage("Link de redefinição inválido ou expirado. Solicite um novo.")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.TOKEN_INVALIDO);
     verify(usuarios, never()).save(any());
   }
 

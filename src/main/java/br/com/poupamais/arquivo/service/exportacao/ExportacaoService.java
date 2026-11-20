@@ -3,6 +3,7 @@ package br.com.poupamais.arquivo.service.exportacao;
 import br.com.poupamais.lancamento.publico.LancamentoFacade;
 import br.com.poupamais.lancamento.publico.dto.FiltroLancamento;
 import br.com.poupamais.lancamento.publico.dto.LancamentoResumo;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -34,7 +35,7 @@ public class ExportacaoService {
     ExportadorLancamentos exportador = fabrica.para(formato);
     List<LancamentoResumo> dados = lancamentos.listar(idUsuario, filtro);
     if (dados.isEmpty()) {
-      throw new RegraNegocioException(MSG_SEM_DADOS);
+      throw new RegraNegocioException(CodigoErro.SEM_DADOS_EXPORTACAO, MSG_SEM_DADOS);
     }
     String nome = "lancamentos-" + LocalDate.now(relogio) + "." + exportador.formato();
     return new ArquivoExportado(nome, exportador.contentType(), exportador.exportar(dados));

@@ -20,6 +20,7 @@ import br.com.poupamais.categoria.service.CategoriaComQuantidade;
 import br.com.poupamais.categoria.service.CategoriaService;
 import br.com.poupamais.shared.config.WebConfiguration;
 import br.com.poupamais.shared.domain.Periodo;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -122,6 +123,7 @@ class CategoriaResourceTest {
     mvc.perform(get("/api/categorias?" + query).header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
         .andExpect(jsonPath("$.erros[0].campo").exists());
 
     verifyNoInteractions(service);
@@ -168,7 +170,9 @@ class CategoriaResourceTest {
   @Test
   void deveDevolver409QuandoDuplicada() throws Exception {
     when(service.criar(USUARIO, "Lazer"))
-        .thenThrow(new ConflitoException("Já existe uma categoria com essa descrição"));
+        .thenThrow(
+            new ConflitoException(
+                CodigoErro.CATEGORIA_DUPLICADA, "Já existe uma categoria com essa descrição"));
 
     mvc.perform(
             post("/api/categorias")
@@ -176,7 +180,8 @@ class CategoriaResourceTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"descricao\":\"Lazer\"}"))
         .andExpect(status().isConflict())
-        .andExpect(jsonPath("$.mensagem").value("Já existe uma categoria com essa descrição"));
+        .andExpect(jsonPath("$.mensagem").value("Já existe uma categoria com essa descrição"))
+        .andExpect(jsonPath("$.codigo").value("CATEGORIA_DUPLICADA"));
   }
 
   @Test
@@ -195,7 +200,9 @@ class CategoriaResourceTest {
   @Test
   void deveDevolver404AoEditarCategoriaDeOutroUsuario() throws Exception {
     when(service.editar(USUARIO, 99L, "Casa"))
-        .thenThrow(new RecursoNaoEncontradoException("Categoria não encontrada"));
+        .thenThrow(
+            new RecursoNaoEncontradoException(
+                CodigoErro.CATEGORIA_NAO_ENCONTRADA, "Categoria não encontrada"));
 
     mvc.perform(
             put("/api/categorias/99")
@@ -237,7 +244,10 @@ class CategoriaResourceTest {
 
   @Test
   void deveDevolver422AoExcluirVinculada() throws Exception {
-    doThrow(new RegraNegocioException("Categoria vinculada a lançamentos, apenas inative"))
+    doThrow(
+            new RegraNegocioException(
+                CodigoErro.CATEGORIA_VINCULADA,
+                "Categoria vinculada a lançamentos, apenas inative"))
         .when(service)
         .excluir(USUARIO, 3L);
 
@@ -249,7 +259,9 @@ class CategoriaResourceTest {
 
   @Test
   void deveDevolver404AoExcluirCategoriaDeOutroUsuario() throws Exception {
-    doThrow(new RecursoNaoEncontradoException("Categoria não encontrada"))
+    doThrow(
+            new RecursoNaoEncontradoException(
+                CodigoErro.CATEGORIA_NAO_ENCONTRADA, "Categoria não encontrada"))
         .when(service)
         .excluir(USUARIO, 99L);
 
@@ -260,7 +272,9 @@ class CategoriaResourceTest {
   @Test
   void deveDevolver404AoAlterarStatusDeOutroUsuario() throws Exception {
     when(service.alterarStatus(anyLong(), anyLong(), org.mockito.ArgumentMatchers.anyBoolean()))
-        .thenThrow(new RecursoNaoEncontradoException("Categoria não encontrada"));
+        .thenThrow(
+            new RecursoNaoEncontradoException(
+                CodigoErro.CATEGORIA_NAO_ENCONTRADA, "Categoria não encontrada"));
 
     mvc.perform(
             patch("/api/categorias/99/status")

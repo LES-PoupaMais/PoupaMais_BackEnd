@@ -8,11 +8,12 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.AuthenticationEntryPoint;
 
-/** Responde 401 no padrão de erro da API ({@code {status, mensagem}}, RNF007). */
+/** Responde 401 no padrão de erro da API ({@code {status, codigo, mensagem}}, RNF007). */
 class ErroAutenticacaoEntryPoint implements AuthenticationEntryPoint {
 
   static final String CORPO =
-      "{\"status\":401,\"mensagem\":\"Sessão inválida ou expirada. Faça login novamente.\"}";
+      "{\"status\":401,\"codigo\":\"NAO_AUTENTICADO\","
+          + "\"mensagem\":\"Sessão inválida ou expirada. Faça login novamente.\"}";
 
   @Override
   public void commence(

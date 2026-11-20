@@ -107,7 +107,7 @@
                 "cadastro"
               ]
             },
-            "description": "Cria o usuário das variáveis `email`/`senha`. **409** se o e-mail já existir (normal ao rodar de novo).",
+            "description": "Cria o usuário das variáveis `email`/`senha`. **409** (`EMAIL_JA_CADASTRADO`) se o e-mail já existir (normal ao rodar de novo).",
             "auth": {
               "type": "noauth"
             },
@@ -129,7 +129,12 @@
                 "exec": [
                   "pm.test(\"Status esperado (201, 409)\", function () {",
                   "  pm.expect([201, 409]).to.include(pm.response.code);",
-                  "});"
+                  "});",
+                  "if (pm.response.code >= 400) {",
+                  "  pm.test(\"Código de erro (EMAIL_JA_CADASTRADO)\", function () {",
+                  "    pm.expect(pm.response.json().codigo).to.eql(\"EMAIL_JA_CADASTRADO\");",
+                  "  });",
+                  "}"
                 ]
               }
             }
@@ -208,6 +213,7 @@
                 "login"
               ]
             },
+            "description": "Toda resposta de erro traz `codigo` (estável, o front decide por ele) além da `mensagem`: aqui, `CREDENCIAIS_INVALIDAS`.",
             "auth": {
               "type": "noauth"
             },
@@ -229,7 +235,12 @@
                 "exec": [
                   "pm.test(\"Status esperado (401)\", function () {",
                   "  pm.expect([401]).to.include(pm.response.code);",
-                  "});"
+                  "});",
+                  "if (pm.response.code >= 400) {",
+                  "  pm.test(\"Código de erro (CREDENCIAIS_INVALIDAS)\", function () {",
+                  "    pm.expect(pm.response.json().codigo).to.eql(\"CREDENCIAIS_INVALIDAS\");",
+                  "  });",
+                  "}"
                 ]
               }
             }
@@ -868,7 +879,7 @@
                 "lancamentos"
               ]
             },
-            "description": "Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`. `2026-02-31` não existe: **400** com erro no campo `data`.",
+            "description": "Mostra o formato de erro: `{status, codigo, mensagem, erros: [{campo, mensagem}]}` (`codigo` `VALIDACAO`). `2026-02-31` não existe: **400** com erro no campo `data`.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"descricao\": \"\",\n  \"tipo\": \"DESPESA\",\n  \"data\": \"2026-02-31\",\n  \"valor\": 0,\n  \"categoriaIds\": []\n}",
@@ -887,7 +898,12 @@
                 "exec": [
                   "pm.test(\"Status esperado (400)\", function () {",
                   "  pm.expect([400]).to.include(pm.response.code);",
-                  "});"
+                  "});",
+                  "if (pm.response.code >= 400) {",
+                  "  pm.test(\"Código de erro (VALIDACAO)\", function () {",
+                  "    pm.expect(pm.response.json().codigo).to.eql(\"VALIDACAO\");",
+                  "  });",
+                  "}"
                 ]
               }
             }
@@ -958,7 +974,7 @@
                 "lancamentos"
               ]
             },
-            "description": "`DELETADO` não vai no corpo (a lixeira é pelo DELETE): **400** com erro no campo `status`.",
+            "description": "`DELETADO` não vai no corpo (a lixeira é pelo DELETE): **400** (`VALIDACAO`) com erro no campo `status`.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"descricao\": \"Supermercado\",\n  \"tipo\": \"DESPESA\",\n  \"data\": \"{{data}}\",\n  \"valor\": 680.00,\n  \"status\": \"DELETADO\",\n  \"categoriaIds\": [{{categoriaId}}]\n}",
@@ -977,7 +993,12 @@
                 "exec": [
                   "pm.test(\"Status esperado (400)\", function () {",
                   "  pm.expect([400]).to.include(pm.response.code);",
-                  "});"
+                  "});",
+                  "if (pm.response.code >= 400) {",
+                  "  pm.test(\"Código de erro (VALIDACAO)\", function () {",
+                  "    pm.expect(pm.response.json().codigo).to.eql(\"VALIDACAO\");",
+                  "  });",
+                  "}"
                 ]
               }
             }
@@ -998,7 +1019,8 @@
                 "categorias",
                 "{{categoriaId}}"
               ]
-            }
+            },
+            "description": "**422** com `codigo` `CATEGORIA_VINCULADA`: categoria com lançamentos só pode ser inativada."
           },
           "event": [
             {
@@ -1008,7 +1030,12 @@
                 "exec": [
                   "pm.test(\"Status esperado (422)\", function () {",
                   "  pm.expect([422]).to.include(pm.response.code);",
-                  "});"
+                  "});",
+                  "if (pm.response.code >= 400) {",
+                  "  pm.test(\"Código de erro (CATEGORIA_VINCULADA)\", function () {",
+                  "    pm.expect(pm.response.json().codigo).to.eql(\"CATEGORIA_VINCULADA\");",
+                  "  });",
+                  "}"
                 ]
               }
             }
@@ -1606,7 +1633,7 @@
                 }
               ]
             },
-            "description": "Sem `mes`/`ano` usa o mês atual. Só considera lançamentos ATIVOS."
+            "description": "Sem `mes`/`ano` usa o mês atual. Só considera lançamentos ATIVOS. Cada item de `maioresDespesas` traz `{id, descricao, data, valor, categorias}` (`data` em ISO `AAAA-MM-DD`)."
           },
           "event": [
             {
@@ -1697,7 +1724,7 @@
                 "redefinir-senha"
               ]
             },
-            "description": "Copie o `token` do link recebido no Mailpit para a variável `tokenRedefinicao`. Sem token válido a resposta é **422** (é o que acontece ao rodar a coleção inteira).",
+            "description": "Copie o `token` do link recebido no Mailpit para a variável `tokenRedefinicao`. Sem token válido a resposta é **422** com `codigo` `TOKEN_INVALIDO` (é o que acontece ao rodar a coleção inteira).",
             "auth": {
               "type": "noauth"
             },
@@ -1719,7 +1746,12 @@
                 "exec": [
                   "pm.test(\"Status esperado (204, 422)\", function () {",
                   "  pm.expect([204, 422]).to.include(pm.response.code);",
-                  "});"
+                  "});",
+                  "if (pm.response.code >= 400) {",
+                  "  pm.test(\"Código de erro (TOKEN_INVALIDO)\", function () {",
+                  "    pm.expect(pm.response.json().codigo).to.eql(\"TOKEN_INVALIDO\");",
+                  "  });",
+                  "}"
                 ]
               }
             }

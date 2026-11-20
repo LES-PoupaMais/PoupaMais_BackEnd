@@ -17,6 +17,7 @@ import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.lancamento.publico.LancamentoFacade;
 import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.nio.charset.StandardCharsets;
@@ -132,7 +133,9 @@ class ImportacaoServiceTest {
   @Test
   void naoDeveListarCategoriaCriadaParaLinhaRecusadaPeloCriar() {
     when(lancamentos.criar(eq(USUARIO), any()))
-        .thenThrow(new RegraNegocioException("O valor deve ser maior que zero"))
+        .thenThrow(
+            new RegraNegocioException(
+                CodigoErro.LANCAMENTO_INVALIDO, "O valor deve ser maior que zero"))
         .thenReturn(null);
 
     ResultadoImportacao resultado =
@@ -183,8 +186,12 @@ class ImportacaoServiceTest {
   @Test
   void deveUsarMensagemDaFacadeComoMotivoEContinuar() {
     when(lancamentos.criar(eq(USUARIO), any()))
-        .thenThrow(new RegraNegocioException("O valor excede o máximo permitido"))
-        .thenThrow(new RecursoNaoEncontradoException("Categoria não encontrada"))
+        .thenThrow(
+            new RegraNegocioException(
+                CodigoErro.LANCAMENTO_INVALIDO, "O valor excede o máximo permitido"))
+        .thenThrow(
+            new RecursoNaoEncontradoException(
+                CodigoErro.CATEGORIA_NAO_ENCONTRADA, "Categoria não encontrada"))
         .thenThrow(new IllegalStateException("banco"))
         .thenReturn(null);
 
@@ -215,7 +222,8 @@ class ImportacaoServiceTest {
 
     assertThatThrownBy(() -> service.importar(USUARIO, semCabecalho))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage(LeitorCsv.MSG_CABECALHO);
+        .hasMessage(LeitorCsv.MSG_CABECALHO)
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CABECALHO_INVALIDO);
     verifyNoInteractions(lancamentos);
   }
 
@@ -223,7 +231,9 @@ class ImportacaoServiceTest {
   void deveRecusarArquivoComMaisDe5000LinhasSemGravarNada() {
     String linhas = "A;RECEITA;15/08/2026;1;Salário\n".repeat(LeitorCsv.MAXIMO_LINHAS + 1);
 
-    assertThatThrownBy(() -> importar(linhas)).hasMessage(LeitorCsv.MSG_MUITAS_LINHAS);
+    assertThatThrownBy(() -> importar(linhas))
+        .hasMessage(LeitorCsv.MSG_MUITAS_LINHAS)
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.ARQUIVO_LINHAS_DEMAIS);
     verifyNoInteractions(lancamentos);
   }
 
@@ -231,7 +241,8 @@ class ImportacaoServiceTest {
   void deveRecusarArquivoMaiorQue2MbSemGravarNada() {
     assertThatThrownBy(
             () -> service.importar(USUARIO, new byte[(int) LeitorCsv.TAMANHO_MAXIMO + 1]))
-        .hasMessage(LeitorCsv.MSG_GRANDE);
+        .hasMessage(LeitorCsv.MSG_GRANDE)
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.ARQUIVO_GRANDE_DEMAIS);
     verifyNoInteractions(lancamentos, categorias);
   }
 }

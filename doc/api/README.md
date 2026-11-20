@@ -37,7 +37,8 @@ Suba a API: `docker compose up -d --build` (API em http://localhost:8080, e-mail
   link para a variável `tokenRedefinicao` e rode `Redefinir senha`. Sem isso a resposta é `422`, o esperado ao rodar tudo de uma vez.
 - **`Excluir minha conta` fica por último:** apaga o usuário de teste e todos os dados dele. Depois, o `Cadastro` funciona de novo.
 - Também há casos de erro de propósito: login com senha errada (`401`), lançamento inválido (`400` com `erros[]`), lançamento com `status: DELETADO` (`400`) e exclusão de
-  categoria em uso (`422`).
+  categoria em uso (`422`). Toda resposta de erro traz `codigo` (ex.: `CREDENCIAIS_INVALIDAS`, `VALIDACAO`, `CATEGORIA_VINCULADA`;
+  tabela no `CLAUDE.md`), e essas requisições também testam o `codigo` esperado.
 - Variáveis padrão: `baseUrl` `http://localhost:8080`, usuário `teste.colecao@poupamais.local` / `senha123`, `mes` `11`, `ano` `2026` (filtros) e `data` `2026-11-05` (corpo do lançamento, ISO `AAAA-MM-DD`).
 
 ## Endpoint novo ou alterado (regra da equipe)

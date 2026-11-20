@@ -188,7 +188,8 @@ class UsuarioIntegracaoTest {
     perfil(token).andExpect(status().isOk()).andExpect(jsonPath("$.email").value(email));
     postar("/api/auth/login", "{\"email\":\"%s\",\"senha\":\"errada\"}".formatted(email), null)
         .andExpect(status().isUnauthorized())
-        .andExpect(jsonPath("$.mensagem").value("E-mail ou senha inválidos"));
+        .andExpect(jsonPath("$.mensagem").value("E-mail ou senha inválidos"))
+        .andExpect(jsonPath("$.codigo").value("CREDENCIAIS_INVALIDAS"));
   }
 
   // ---------- recuperação de senha ----------

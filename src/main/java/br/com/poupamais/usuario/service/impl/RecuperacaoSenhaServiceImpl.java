@@ -2,6 +2,7 @@ package br.com.poupamais.usuario.service.impl;
 
 import br.com.poupamais.notificacao.publico.EmailFacade;
 import br.com.poupamais.notificacao.publico.excecoes.EnvioEmailException;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.usuario.model.entidades.TokenRecuperacaoSenha;
 import br.com.poupamais.usuario.model.entidades.Usuario;
@@ -103,14 +104,16 @@ public class RecuperacaoSenhaServiceImpl implements RecuperacaoSenhaService {
             .filter(t -> !t.isBlank())
             .flatMap(t -> tokenRepository.findByTokenHash(hash(t.strip())))
             .filter(t -> t.valido(agora))
-            .orElseThrow(() -> new RegraNegocioException(MSG_TOKEN_INVALIDO));
+            .orElseThrow(
+                () -> new RegraNegocioException(CodigoErro.TOKEN_INVALIDO, MSG_TOKEN_INVALIDO));
     RegrasConta.validarSenha(novaSenha);
     // Uso único: marca este e qualquer outro token pendente do usuário como usado
     tokenRepository.invalidarPendentes(registro.getIdUsuario(), agora);
     Usuario usuario =
         usuarioRepository
             .findById(registro.getIdUsuario())
-            .orElseThrow(() -> new RegraNegocioException(MSG_TOKEN_INVALIDO));
+            .orElseThrow(
+                () -> new RegraNegocioException(CodigoErro.TOKEN_INVALIDO, MSG_TOKEN_INVALIDO));
     usuario.setSenha(passwordEncoder.encode(novaSenha));
     // RN014: derruba todas as sessões abertas
     usuario.setSenhaAlteradaEm(RegrasConta.agoraEmSegundos(relogio));

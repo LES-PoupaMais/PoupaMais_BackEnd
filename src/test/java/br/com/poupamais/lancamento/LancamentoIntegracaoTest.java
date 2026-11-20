@@ -385,6 +385,7 @@ class LancamentoIntegracaoTest {
     enviar(post("/api/lancamentos"), corpoComStatus("DELETADO"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
         .andExpect(jsonPath("$.erros[0].campo").value("status"))
         .andExpect(jsonPath("$.erros[0].mensagem").value("Informe o status ATIVO ou INATIVO"));
     enviar(put("/api/lancamentos/" + id), corpoComStatus("DELETADO"))

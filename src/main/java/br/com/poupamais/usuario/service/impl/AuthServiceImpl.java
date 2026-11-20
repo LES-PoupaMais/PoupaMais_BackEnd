@@ -1,6 +1,7 @@
 package br.com.poupamais.usuario.service.impl;
 
 import br.com.poupamais.categoria.publico.CategoriaFacade;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -38,13 +39,13 @@ public class AuthServiceImpl implements AuthService {
   @Transactional
   public Usuario cadastrar(String nome, String email, String senha, boolean aceiteTermos) {
     if (!aceiteTermos) {
-      throw new RegraNegocioException(MSG_ACEITE);
+      throw new RegraNegocioException(CodigoErro.ACEITE_TERMOS_OBRIGATORIO, MSG_ACEITE);
     }
     String nomeNormalizado = RegrasConta.normalizarNome(nome);
     String emailNormalizado = RegrasConta.normalizarEmail(email);
     RegrasConta.validarSenha(senha);
     if (repository.existsByEmail(emailNormalizado)) {
-      throw new ConflitoException(MSG_EMAIL_DUPLICADO);
+      throw new ConflitoException(CodigoErro.EMAIL_JA_CADASTRADO, MSG_EMAIL_DUPLICADO);
     }
     Usuario usuario;
     try {
@@ -58,7 +59,7 @@ public class AuthServiceImpl implements AuthService {
                   .build());
     } catch (DataIntegrityViolationException e) {
       // Corrida no UNIQUE do e-mail entre a checagem e o insert
-      throw new ConflitoException(MSG_EMAIL_DUPLICADO);
+      throw new ConflitoException(CodigoErro.EMAIL_JA_CADASTRADO, MSG_EMAIL_DUPLICADO);
     }
     // RN002: mesma transação; se falhar, o cadastro inteiro é desfeito
     categoriaFacade.criarPadroes(usuario.getId());
@@ -72,7 +73,9 @@ public class AuthServiceImpl implements AuthService {
         repository
             .findByEmail(RegrasConta.normalizarEmail(email))
             .filter(u -> senha != null && passwordEncoder.matches(senha, u.getSenha()))
-            .orElseThrow(() -> new ErroAutenticacaoException(MSG_LOGIN_INVALIDO));
+            .orElseThrow(() ->
+                new ErroAutenticacaoException(
+                    CodigoErro.CREDENCIAIS_INVALIDAS, MSG_LOGIN_INVALIDO));
     return new Sessao(jwtService.gerar(usuario.getId()), usuario);
   }
 }

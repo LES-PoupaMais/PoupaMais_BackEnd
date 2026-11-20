@@ -184,6 +184,10 @@ class DashboardServiceImplTest {
         .containsExactly(maior.id(), m3.id(), m4.id(), empate1.id(), empate2.id());
     assertThat(ranking.get(0).categorias()).containsExactly("Moradia", "Lazer");
     assertThat(ranking.get(0).valor()).isEqualByComparingTo("900.00");
+    // cada item traz a data do próprio lançamento (o ranking não muda por causa dela)
+    assertThat(ranking)
+        .extracting(MaiorDespesa::data)
+        .containsExactly(maior.data(), m3.data(), m4.data(), empate1.data(), empate2.data());
   }
 
   @Test
@@ -230,7 +234,8 @@ class DashboardServiceImplTest {
 
   @Test
   void deveArredondarOPercentualDoPesoComHalfUp() {
-    MaiorDespesa d = new MaiorDespesa(1L, "x", new BigDecimal("1.00"), List.of());
+    MaiorDespesa d =
+        new MaiorDespesa(1L, "x", LocalDate.of(2026, 8, 1), new BigDecimal("1.00"), List.of());
     // 1 / 3 = 33,333...% -> 33,33 · 2 / 3 = 66,666...% -> 66,67 · 1 / 8 = 12,5% -> 12,50
     assertThat(DashboardServiceImpl.pesoMaiores(List.of(d), new BigDecimal("3.00")).percentual())
         .isEqualByComparingTo("33.33");
