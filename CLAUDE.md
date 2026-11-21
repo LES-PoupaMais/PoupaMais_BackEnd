@@ -653,12 +653,12 @@ Três níveis obrigatórios, mais a verificação de arquitetura. Guia detalhado
   Localmente: `docker compose up -d db-test` (porta 5433, nasce vazio; o Flyway cria o schema ao subir o contexto) e
   `export POUPAMAIS_TEST_DB_URL=jdbc:postgresql://localhost:5433/poupamais_test`.
 - **Cobertura (JaCoCo)**: `./mvnw verify` falha abaixo do piso do `pom.xml`: **80% de linhas e 70% de branches** no início
-  (o Previna usa 95/90; subimos o piso junto quando a cobertura subir). Excluídos: `PoupaMaisApplication` e os `dto/` (records sem lógica).
+  (subimos o piso junto quando a cobertura subir). Excluídos: `PoupaMaisApplication` e os `dto/` (records sem lógica).
 - Nomes de teste em português descrevendo o comportamento: `deveRecusarArquivoComMaisDe5000Linhas()`.
 
 ## Pipeline (CI: GitHub Actions)
 
-Arquivo: `.github/workflows/ci.yml` (mesmo desenho da pipeline do Previna, adaptado).
+Arquivo: `.github/workflows/ci.yml`.
 
 - **Quando roda:** push na `development` e na `main`, e todo Pull Request. Um push novo no mesmo PR cancela a execução anterior (`concurrency`).
 - **Permissões:** só leitura (`contents: read`).
