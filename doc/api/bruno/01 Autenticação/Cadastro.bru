@@ -23,8 +23,13 @@ tests {
   test("Status esperado (201, 409)", function () {
     expect([201, 409]).to.include(res.status);
   });
+  if (res.status >= 400) {
+    test("Código de erro (EMAIL_JA_CADASTRADO)", function () {
+      expect(res.body.codigo).to.eql("EMAIL_JA_CADASTRADO");
+    });
+  }
 }
 
 docs {
-  Cria o usuário das variáveis `email`/`senha`. **409** se o e-mail já existir (normal ao rodar de novo).
+  Cria o usuário das variáveis `email`/`senha`. **409** (`EMAIL_JA_CADASTRADO`) se o e-mail já existir (normal ao rodar de novo).
 }

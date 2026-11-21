@@ -21,6 +21,7 @@ import br.com.poupamais.lancamento.publico.dto.FiltroLancamento;
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.config.WebConfiguration;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.shared.security.JwtService;
 import br.com.poupamais.shared.security.SecurityConfiguration;
@@ -29,10 +30,13 @@ import java.util.List;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -86,14 +90,15 @@ class ArquivoResourceTest {
   @Test
   void importarArquivoRecusadoDeveDar422() throws Exception {
     when(importacao.importar(eq(USUARIO), any()))
-        .thenThrow(new RegraNegocioException("Cabeçalho inválido"));
+        .thenThrow(new RegraNegocioException(CodigoErro.CABECALHO_INVALIDO, "Cabeçalho inválido"));
 
     mvc.perform(
             multipart("/api/lancamentos/importar")
                 .file(csv("a"))
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent())
-        .andExpect(jsonPath("$.mensagem").value("Cabeçalho inválido"));
+        .andExpect(jsonPath("$.mensagem").value("Cabeçalho inválido"))
+        .andExpect(jsonPath("$.codigo").value("CABECALHO_INVALIDO"));
   }
 
   @Test
@@ -103,7 +108,8 @@ class ArquivoResourceTest {
                 .file(csv(""))
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent())
-        .andExpect(jsonPath("$.mensagem").value(ArquivoResource.MSG_SEM_ARQUIVO));
+        .andExpect(jsonPath("$.mensagem").value(ArquivoResource.MSG_SEM_ARQUIVO))
+        .andExpect(jsonPath("$.codigo").value("ARQUIVO_VAZIO"));
     mvc.perform(multipart("/api/lancamentos/importar").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent());
     verifyNoInteractions(importacao);
@@ -162,20 +168,71 @@ class ArquivoResourceTest {
                 .param("formato", "pdf")
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.mensagem").value("Formato inválido. Use: csv ou xlsx"));
+        .andExpect(jsonPath("$.mensagem").value("Formato inválido. Use: csv ou xlsx"))
+        .andExpect(jsonPath("$.codigo").value("FORMATO_EXPORTACAO_INVALIDO"));
   }
 
   @Test
   void exportarSemDadosDeveDar422() throws Exception {
     when(exportacao.exportar(eq(USUARIO), eq("csv"), any()))
-        .thenThrow(new RegraNegocioException("Não há dados para exportação"));
+        .thenThrow(
+            new RegraNegocioException(
+                CodigoErro.SEM_DADOS_EXPORTACAO, "Não há dados para exportação"));
 
     mvc.perform(
             get("/api/lancamentos/exportar")
                 .param("formato", "csv")
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent())
-        .andExpect(jsonPath("$.mensagem").value("Não há dados para exportação"));
+        .andExpect(jsonPath("$.mensagem").value("Não há dados para exportação"))
+        .andExpect(jsonPath("$.codigo").value("SEM_DADOS_EXPORTACAO"));
+  }
+
+  /**
+   * O cliente que baixa o arquivo pede {@code text/csv} ou {@code application/octet-stream}; se a
+   * exportação falhar, o erro sai mesmo assim em JSON, com {@code codigo} (não 406 nem 500).
+   */
+  @ParameterizedTest
+  @ValueSource(strings = {"text/csv", "application/octet-stream", "application/vnd.ms-excel"})
+  void exportarComErroDeveResponderJsonComCodigoMesmoComAcceptNaoJson(String accept)
+      throws Exception {
+    when(exportacao.exportar(eq(USUARIO), eq("pdf"), any()))
+        .thenThrow(new FormatoInvalidoException("Formato inválido. Use: csv ou xlsx"));
+    when(exportacao.exportar(eq(USUARIO), eq("csv"), any()))
+        .thenThrow(
+            new RegraNegocioException(
+                CodigoErro.SEM_DADOS_EXPORTACAO, "Não há dados para exportação"));
+
+    mvc.perform(
+            get("/api/lancamentos/exportar")
+                .param("formato", "pdf")
+                .header(HttpHeaders.AUTHORIZATION, bearer)
+                .accept(accept))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.status").value(400))
+        .andExpect(jsonPath("$.codigo").value("FORMATO_EXPORTACAO_INVALIDO"));
+    mvc.perform(
+            get("/api/lancamentos/exportar")
+                .param("formato", "csv")
+                .header(HttpHeaders.AUTHORIZATION, bearer)
+                .accept(accept))
+        .andExpect(status().isUnprocessableContent())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.codigo").value("SEM_DADOS_EXPORTACAO"));
+    mvc.perform(
+            get("/api/lancamentos/exportar")
+                .param("formato", "csv")
+                .param("mes", "abc")
+                .header(HttpHeaders.AUTHORIZATION, bearer)
+                .accept(accept))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.codigo").isNotEmpty());
+    mvc.perform(get("/api/lancamentos/exportar").param("formato", "csv").accept(accept))
+        .andExpect(status().isUnauthorized())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.codigo").value("NAO_AUTENTICADO"));
   }
 
   @Test

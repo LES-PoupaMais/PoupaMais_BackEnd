@@ -2,6 +2,7 @@ package br.com.poupamais.lancamento.service;
 
 import br.com.poupamais.lancamento.publico.dto.NovoLancamento;
 import br.com.poupamais.shared.domain.Periodo;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -44,11 +45,11 @@ public class LancamentoValidator {
 
   public NovoLancamento validar(NovoLancamento dados) {
     if (dados == null) {
-      throw new RegraNegocioException(MSG_DESCRICAO_OBRIGATORIA);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_DESCRICAO_OBRIGATORIA);
     }
     String descricao = validarDescricao(dados.descricao());
     if (dados.tipo() == null) {
-      throw new RegraNegocioException(MSG_TIPO_OBRIGATORIO);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_TIPO_OBRIGATORIO);
     }
     validarData(dados.data());
     BigDecimal valor = validarValor(dados.valor());
@@ -61,34 +62,34 @@ public class LancamentoValidator {
    */
   private static void validarData(LocalDate data) {
     if (data == null) {
-      throw new RegraNegocioException(MSG_DATA_OBRIGATORIA);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_DATA_OBRIGATORIA);
     }
     if (data.isBefore(DATA_MINIMA) || data.isAfter(DATA_MAXIMA)) {
-      throw new RegraNegocioException(MSG_DATA_FORA_DA_FAIXA);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_DATA_FORA_DA_FAIXA);
     }
   }
 
   private static String validarDescricao(String descricao) {
     String normalizada = descricao == null ? "" : descricao.strip();
     if (normalizada.isEmpty()) {
-      throw new RegraNegocioException(MSG_DESCRICAO_OBRIGATORIA);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_DESCRICAO_OBRIGATORIA);
     }
     if (normalizada.length() > TAMANHO_MAXIMO_DESCRICAO) {
-      throw new RegraNegocioException(MSG_DESCRICAO_LONGA);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_DESCRICAO_LONGA);
     }
     return normalizada;
   }
 
   private static BigDecimal validarValor(BigDecimal valor) {
     if (valor == null) {
-      throw new RegraNegocioException(MSG_VALOR_OBRIGATORIO);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_VALOR_OBRIGATORIO);
     }
     BigDecimal arredondado = valor.setScale(2, RoundingMode.HALF_UP);
     if (arredondado.signum() <= 0) {
-      throw new RegraNegocioException(MSG_VALOR_POSITIVO);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_VALOR_POSITIVO);
     }
     if (arredondado.compareTo(VALOR_MAXIMO) > 0) {
-      throw new RegraNegocioException(MSG_VALOR_GRANDE);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_VALOR_GRANDE);
     }
     return arredondado;
   }
@@ -96,7 +97,7 @@ public class LancamentoValidator {
   /** Ids nulos são descartados; repetidos contam uma vez (ordem preservada). */
   private static List<Long> validarCategorias(List<Long> ids) {
     if (ids == null || ids.isEmpty() || ids.stream().allMatch(Objects::isNull)) {
-      throw new RegraNegocioException(MSG_CATEGORIA_OBRIGATORIA);
+      throw new RegraNegocioException(CodigoErro.LANCAMENTO_INVALIDO, MSG_CATEGORIA_OBRIGATORIA);
     }
     return List.copyOf(new LinkedHashSet<>(ids.stream().filter(Objects::nonNull).toList()));
   }

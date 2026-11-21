@@ -198,7 +198,8 @@ class ArquivoIntegracaoTest {
                 .param("formato", "xlsx")
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnprocessableContent())
-        .andExpect(jsonPath("$.mensagem").value("Não há dados para exportação"));
+        .andExpect(jsonPath("$.mensagem").value("Não há dados para exportação"))
+        .andExpect(jsonPath("$.codigo").value("SEM_DADOS_EXPORTACAO"));
 
     mvc.perform(
         multipart("/api/lancamentos/importar")
@@ -234,10 +235,84 @@ class ArquivoIntegracaoTest {
                 .param("formato", "pdf")
                 .header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.mensagem").value("Formato inválido. Use: csv ou xlsx"));
+        .andExpect(jsonPath("$.mensagem").value("Formato inválido. Use: csv ou xlsx"))
+        .andExpect(jsonPath("$.codigo").value("FORMATO_EXPORTACAO_INVALIDO"));
     mvc.perform(get("/api/lancamentos/999999999").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isNotFound());
     mvc.perform(get("/api/lancamentos").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isOk());
+  }
+
+  /**
+   * Quem baixa o arquivo pede {@code text/csv}/{@code application/octet-stream}: os erros da
+   * exportação e das outras rotas saem mesmo assim em JSON com {@code codigo}; com sucesso, o anexo
+   * sai normalmente.
+   */
+  @Test
+  void errosComAcceptNaoJsonSaemEmJsonComCodigo() throws Exception {
+    for (String accept : List.of("text/csv", "application/octet-stream")) {
+      mvc.perform(
+              get("/api/lancamentos/exportar")
+                  .param("formato", "pdf")
+                  .header(HttpHeaders.AUTHORIZATION, bearer)
+                  .accept(accept))
+          .andExpect(status().isBadRequest())
+          .andExpect(
+              header().string(HttpHeaders.CONTENT_TYPE, Matchers.startsWith("application/json")))
+          .andExpect(jsonPath("$.status").value(400))
+          .andExpect(jsonPath("$.codigo").value("FORMATO_EXPORTACAO_INVALIDO"));
+      mvc.perform(
+              get("/api/lancamentos/exportar")
+                  .param("formato", "csv")
+                  .header(HttpHeaders.AUTHORIZATION, bearer)
+                  .accept(accept))
+          .andExpect(status().isUnprocessableContent())
+          .andExpect(
+              header().string(HttpHeaders.CONTENT_TYPE, Matchers.startsWith("application/json")))
+          .andExpect(jsonPath("$.codigo").value("SEM_DADOS_EXPORTACAO"));
+      mvc.perform(
+              get("/api/lancamentos/exportar")
+                  .param("formato", "csv")
+                  .param("categoriaId", "abc")
+                  .header(HttpHeaders.AUTHORIZATION, bearer)
+                  .accept(accept))
+          .andExpect(status().isBadRequest())
+          .andExpect(
+              header().string(HttpHeaders.CONTENT_TYPE, Matchers.startsWith("application/json")))
+          .andExpect(jsonPath("$.codigo").isNotEmpty());
+      mvc.perform(
+              get("/api/lancamentos/999999999")
+                  .header(HttpHeaders.AUTHORIZATION, bearer)
+                  .accept(accept))
+          .andExpect(status().isNotFound())
+          .andExpect(
+              header().string(HttpHeaders.CONTENT_TYPE, Matchers.startsWith("application/json")))
+          .andExpect(jsonPath("$.codigo").value("LANCAMENTO_NAO_ENCONTRADO"));
+      mvc.perform(
+              multipart("/api/lancamentos/importar")
+                  .file(arquivo(new byte[0]))
+                  .header(HttpHeaders.AUTHORIZATION, bearer)
+                  .accept(accept))
+          .andExpect(status().isUnprocessableContent())
+          .andExpect(
+              header().string(HttpHeaders.CONTENT_TYPE, Matchers.startsWith("application/json")))
+          .andExpect(jsonPath("$.codigo").value("ARQUIVO_VAZIO"));
+      mvc.perform(get("/api/categorias").accept(accept))
+          .andExpect(status().isUnauthorized())
+          .andExpect(
+              header().string(HttpHeaders.CONTENT_TYPE, Matchers.startsWith("application/json")))
+          .andExpect(jsonPath("$.codigo").value("NAO_AUTENTICADO"));
+    }
+    // Caso legítimo do 406: rota JSON que deu certo, mas o cliente só aceita CSV
+    mvc.perform(get("/api/categorias").header(HttpHeaders.AUTHORIZATION, bearer).accept("text/csv"))
+        .andExpect(status().isNotAcceptable())
+        .andExpect(jsonPath("$.codigo").value("TIPO_RESPOSTA_NAO_ACEITO"));
+    // Sucesso com Accept do anexo: o arquivo sai normalmente
+    mvc.perform(
+            get("/api/lancamentos/template-csv")
+                .header(HttpHeaders.AUTHORIZATION, bearer)
+                .accept("text/csv"))
+        .andExpect(status().isOk())
+        .andExpect(header().string(HttpHeaders.CONTENT_TYPE, Matchers.startsWith("text/csv")));
   }
 }

@@ -172,6 +172,7 @@ class DashboardIntegracaoTest {
         .andExpect(jsonPath("$.despesasPorCategoria[2].valor").value(33.33))
         .andExpect(jsonPath("$.maioresDespesas.length()").value(3))
         .andExpect(jsonPath("$.maioresDespesas[0].id").value(aluguel))
+        .andExpect(jsonPath("$.maioresDespesas[0].data").value("2026-01-31"))
         .andExpect(jsonPath("$.maioresDespesas[0].categorias[0]").value("Moradia"))
         .andExpect(jsonPath("$.maioresDespesas[1].id").value(feira))
         .andExpect(jsonPath("$.maioresDespesas[1].categorias.length()").value(3))

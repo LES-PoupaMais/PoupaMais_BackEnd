@@ -7,6 +7,7 @@ import br.com.poupamais.categoria.model.entidades.Categoria;
 import br.com.poupamais.categoria.publico.CategoriaFacade;
 import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.categoria.service.CategoriaService;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -132,7 +133,8 @@ class CategoriaIntegracaoTest {
 
     assertThatThrownBy(() -> service.excluir(usuarioA, vinculada.getId()))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Categoria vinculada a lançamentos, apenas inative");
+        .hasMessage("Categoria vinculada a lançamentos, apenas inative")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_VINCULADA);
 
     service.excluir(usuarioA, livre.getId());
     assertThat(facade.buscarPorIds(usuarioA, List.of(livre.getId(), vinculada.getId())))

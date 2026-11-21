@@ -25,6 +25,7 @@ import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.lancamento.service.LancamentoResumoConversor;
 import br.com.poupamais.lancamento.service.LancamentoValidator;
 import br.com.poupamais.shared.domain.Periodo;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.math.BigDecimal;
@@ -137,25 +138,32 @@ class LancamentoServiceImplTest {
 
   @Test
   void deveRecusarCategoriaInativaCom422() {
-    doThrow(new RegraNegocioException("A categoria \"Lazer\" está inativa e não pode ser usada"))
+    doThrow(
+            new RegraNegocioException(
+                CodigoErro.CATEGORIA_INATIVA,
+                "A categoria \"Lazer\" está inativa e não pode ser usada"))
         .when(categoriaFacade)
         .validarAtivasDoUsuario(USUARIO, List.of(3L));
 
     assertThatThrownBy(() -> service.criar(USUARIO, novo(List.of(3L))))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessageContaining("inativa");
+        .hasMessageContaining("inativa")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_INATIVA);
     verify(repository, never()).saveAndFlush(any());
   }
 
   @Test
   void deveRecusarCategoriaInexistenteOuDeOutroCom404() {
-    doThrow(new RecursoNaoEncontradoException("Categoria não encontrada"))
+    doThrow(
+            new RecursoNaoEncontradoException(
+                CodigoErro.CATEGORIA_NAO_ENCONTRADA, "Categoria não encontrada"))
         .when(categoriaFacade)
         .validarAtivasDoUsuario(USUARIO, List.of(99L));
 
     assertThatThrownBy(() -> service.criar(USUARIO, novo(List.of(99L))))
         .isInstanceOf(RecursoNaoEncontradoException.class)
-        .hasMessage("Categoria não encontrada");
+        .hasMessage("Categoria não encontrada")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_NAO_ENCONTRADA);
   }
 
   @Test
@@ -165,7 +173,8 @@ class LancamentoServiceImplTest {
 
     assertThatThrownBy(() -> service.criar(USUARIO, semValor))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("O valor é obrigatório");
+        .hasMessage("O valor é obrigatório")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_INVALIDO);
     verifyNoInteractions(categoriaFacade, repository);
   }
 
@@ -190,8 +199,9 @@ class LancamentoServiceImplTest {
 
     assertThatThrownBy(() -> service.buscar(USUARIO, 10L))
         .isInstanceOf(RecursoNaoEncontradoException.class)
-        .hasMessage("Lançamento não encontrado");
-    assertThatThrownBy(() -> service.editar(USUARIO, 10L, novo(List.of(1L))))
+        .hasMessage("Lançamento não encontrado")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_NAO_ENCONTRADO);
+    assertThatThrownBy(() -> service.editar(USUARIO, 10L, novo(List.of(1L)), null))
         .isInstanceOf(RecursoNaoEncontradoException.class);
     assertThatThrownBy(() -> service.alterarStatus(USUARIO, 10L, StatusLancamento.INATIVO))
         .isInstanceOf(RecursoNaoEncontradoException.class);
@@ -210,7 +220,7 @@ class LancamentoServiceImplTest {
     salvarDevolveOMesmo();
     categoriasExistem(new CategoriaResumo(2L, "B", false), new CategoriaResumo(3L, "C", true));
 
-    LancamentoResumo editado = service.editar(USUARIO, 10L, novo(List.of(2L, 3L)));
+    LancamentoResumo editado = service.editar(USUARIO, 10L, novo(List.of(2L, 3L)), null);
 
     assertThat(editado.descricao()).isEqualTo("Aluguel");
     assertThat(editado.tipo()).isEqualTo(TipoLancamento.DESPESA);
@@ -226,9 +236,76 @@ class LancamentoServiceImplTest {
   void naoDeveEditarDeletado() {
     encontra(existente(StatusLancamento.DELETADO, 1L));
 
-    assertThatThrownBy(() -> service.editar(USUARIO, 10L, novo(List.of(1L))))
+    assertThatThrownBy(() -> service.editar(USUARIO, 10L, novo(List.of(1L)), null))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Lançamento excluído não pode ser editado. Restaure-o antes.");
+        .hasMessage("Lançamento excluído não pode ser editado. Restaure-o antes.")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_NA_LIXEIRA);
+    verify(repository, never()).saveAndFlush(any());
+  }
+
+  @Test
+  void deveCriarJaComOStatusPedido() {
+    salvarDevolveOMesmo();
+    categoriasExistem(new CategoriaResumo(1L, "A", true));
+
+    LancamentoResumo inativo = service.criar(USUARIO, novo(List.of(1L)), StatusLancamento.INATIVO);
+    LancamentoResumo semStatus = service.criar(USUARIO, novo(List.of(1L)), null);
+
+    assertThat(inativo.status()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(inativo.dataAtualizacao()).isNull();
+    assertThat(semStatus.status()).isEqualTo(StatusLancamento.ATIVO);
+  }
+
+  @Test
+  void deveRecusarStatusDeletadoNoCadastroENaEdicao() {
+    assertThatThrownBy(() -> service.criar(USUARIO, novo(List.of(1L)), StatusLancamento.DELETADO))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Informe o status ATIVO ou INATIVO")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.STATUS_INVALIDO);
+    assertThatThrownBy(
+            () -> service.editar(USUARIO, 10L, novo(List.of(1L)), StatusLancamento.DELETADO))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Informe o status ATIVO ou INATIVO")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.STATUS_INVALIDO);
+    verifyNoInteractions(repository);
+  }
+
+  @Test
+  void deveEditarTrocandoOStatus() {
+    Lancamento l = existente(StatusLancamento.ATIVO, 1L);
+    encontra(l);
+    salvarDevolveOMesmo();
+    categoriasExistem(new CategoriaResumo(1L, "A", true));
+
+    LancamentoResumo editado =
+        service.editar(USUARIO, 10L, novo(List.of(1L)), StatusLancamento.INATIVO);
+
+    assertThat(editado.status()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(editado.dataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+  }
+
+  @Test
+  void deveEditarMantendoOStatusQuandoNaoVemOuEOMesmo() {
+    Lancamento l = existente(StatusLancamento.INATIVO, 1L);
+    encontra(l);
+    salvarDevolveOMesmo();
+    categoriasExistem(new CategoriaResumo(1L, "A", true));
+
+    assertThat(service.editar(USUARIO, 10L, novo(List.of(1L)), null).status())
+        .isEqualTo(StatusLancamento.INATIVO);
+    assertThat(service.editar(USUARIO, 10L, novo(List.of(1L)), StatusLancamento.INATIVO).status())
+        .isEqualTo(StatusLancamento.INATIVO);
+  }
+
+  @Test
+  void naoDeveEditarDeletadoMesmoComStatus() {
+    encontra(existente(StatusLancamento.DELETADO, 1L));
+
+    assertThatThrownBy(
+            () -> service.editar(USUARIO, 10L, novo(List.of(1L)), StatusLancamento.ATIVO))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Lançamento excluído não pode ser editado. Restaure-o antes.")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_NA_LIXEIRA);
     verify(repository, never()).saveAndFlush(any());
   }
 
@@ -267,14 +344,29 @@ class LancamentoServiceImplTest {
 
     assertThatThrownBy(() -> service.alterarStatus(USUARIO, 10L, StatusLancamento.ATIVO))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Não é possível alterar o status de DELETADO para ATIVO");
+        .hasMessage("Não é possível alterar o status de DELETADO para ATIVO")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_NA_LIXEIRA);
+  }
+
+  @Test
+  void patchNaoTiraDaLixeira() {
+    Lancamento l = existente(StatusLancamento.DELETADO, 1L);
+    encontra(l);
+
+    assertThatThrownBy(() -> service.alterarStatus(USUARIO, 10L, StatusLancamento.INATIVO))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Não é possível alterar o status de DELETADO para INATIVO")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_NA_LIXEIRA);
+    assertThat(l.getStatus()).isEqualTo(StatusLancamento.DELETADO);
+    verify(repository, never()).save(any());
   }
 
   @Test
   void deveRecusarStatusDeletadoOuNuloNoPatch() {
     assertThatThrownBy(() -> service.alterarStatus(USUARIO, 10L, StatusLancamento.DELETADO))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Informe o status ATIVO ou INATIVO");
+        .hasMessage("Informe o status ATIVO ou INATIVO")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.STATUS_INVALIDO);
     assertThatThrownBy(() -> service.alterarStatus(USUARIO, 10L, null))
         .isInstanceOf(RegraNegocioException.class);
     verifyNoInteractions(repository);
@@ -302,11 +394,12 @@ class LancamentoServiceImplTest {
 
     assertThatThrownBy(() -> service.excluir(USUARIO, 10L))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("O lançamento já está excluído");
+        .hasMessage("O lançamento já está excluído")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_JA_EXCLUIDO);
   }
 
   @Test
-  void deveRestaurarComoInativo() {
+  void deveRestaurarComoInativoQuemNaoTemStatusAnterior() {
     Lancamento l = existente(StatusLancamento.DELETADO, 1L);
     l.setDataExclusao(OffsetDateTime.of(2025, 2, 1, 12, 0, 0, 0, ZoneOffset.UTC));
     encontra(l);
@@ -321,12 +414,27 @@ class LancamentoServiceImplTest {
   }
 
   @Test
+  void deveRestaurarAoStatusQueTinhaAntesDaLixeira() {
+    Lancamento l = existente(StatusLancamento.ATIVO, 1L);
+    encontra(l);
+    when(repository.save(l)).thenReturn(l);
+    categoriasExistem();
+    service.excluir(USUARIO, 10L);
+
+    LancamentoResumo resumo = service.restaurar(USUARIO, 10L);
+
+    assertThat(resumo.status()).isEqualTo(StatusLancamento.ATIVO);
+    assertThat(l.getStatusAnterior()).isNull();
+  }
+
+  @Test
   void naoDeveRestaurarQuemNaoEstaExcluido() {
     encontra(existente(StatusLancamento.ATIVO, 1L));
 
     assertThatThrownBy(() -> service.restaurar(USUARIO, 10L))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Só é possível restaurar um lançamento excluído");
+        .hasMessage("Só é possível restaurar um lançamento excluído")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_NAO_EXCLUIDO);
   }
 
   // ---------- listagens / facade ----------
@@ -365,7 +473,8 @@ class LancamentoServiceImplTest {
 
     assertThatThrownBy(() -> service.listar(USUARIO, filtro))
         .isInstanceOf(RecursoNaoEncontradoException.class)
-        .hasMessage("Categoria não encontrada");
+        .hasMessage("Categoria não encontrada")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_NAO_ENCONTRADA);
   }
 
   @Test
@@ -433,7 +542,8 @@ class LancamentoServiceImplTest {
 
     assertThatThrownBy(() -> service.listarPagina(USUARIO, filtro, 0, 12))
         .isInstanceOf(RecursoNaoEncontradoException.class)
-        .hasMessage("Categoria não encontrada");
+        .hasMessage("Categoria não encontrada")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.CATEGORIA_NAO_ENCONTRADA);
     verifyNoInteractions(repository);
   }
 

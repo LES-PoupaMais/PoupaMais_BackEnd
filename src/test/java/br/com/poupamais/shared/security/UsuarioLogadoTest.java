@@ -2,6 +2,7 @@ package br.com.poupamais.shared.security;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,8 @@ class UsuarioLogadoTest {
   void deveLancarErroDeAutenticacaoSemUsuarioNoContexto() {
     assertThatThrownBy(UsuarioLogado::id)
         .isInstanceOf(ErroAutenticacaoException.class)
-        .hasMessage("Sessão inválida ou expirada. Faça login novamente.");
+        .hasMessage("Sessão inválida ou expirada. Faça login novamente.")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.NAO_AUTENTICADO);
   }
 
   @Test

@@ -1,0 +1,21 @@
+meta {
+  name: Saúde da API
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/actuator/health
+  body: none
+  auth: none
+}
+
+tests {
+  test("Status esperado (200)", function () {
+    expect([200]).to.include(res.status);
+  });
+}
+
+docs {
+  Público (sem token). **200** `{"status":"UP"}` com a API e o banco no ar; **503** `{"status":"DOWN"}` se não. Sem detalhes. É o que o HEALTHCHECK do Docker consulta.
+}

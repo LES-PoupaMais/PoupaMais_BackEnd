@@ -20,6 +20,7 @@ import br.com.poupamais.shared.domain.Periodo;
 import br.com.poupamais.shared.security.JwtService;
 import br.com.poupamais.shared.security.SecurityConfiguration;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,7 +63,13 @@ class DashboardResourceTest {
         "Saldo positivo de R$ 4.920,00 em Agosto",
         List.of(new MesResumo(5, 2026, zero, zero, zero)),
         List.of(new DespesaCategoria(2L, "Moradia", new BigDecimal("2100.00"))),
-        List.of(new MaiorDespesa(9L, "Aluguel", new BigDecimal("2100.00"), List.of("Moradia"))),
+        List.of(
+            new MaiorDespesa(
+                9L,
+                "Aluguel",
+                LocalDate.of(2026, 8, 5),
+                new BigDecimal("2100.00"),
+                List.of("Moradia"))),
         new PesoMaioresDespesas(new BigDecimal("2100.00"), new BigDecimal("43.93")));
   }
 
@@ -86,6 +93,7 @@ class DashboardResourceTest {
         .andExpect(jsonPath("$.despesasPorCategoria[0].descricao").value("Moradia"))
         .andExpect(jsonPath("$.despesasPorCategoria[0].valor").value(2100.0))
         .andExpect(jsonPath("$.maioresDespesas[0].id").value(9))
+        .andExpect(jsonPath("$.maioresDespesas[0].data").value("2026-08-05"))
         .andExpect(jsonPath("$.maioresDespesas[0].categorias[0]").value("Moradia"))
         .andExpect(jsonPath("$.pesoMaioresDespesas.valor").value(2100.0))
         .andExpect(jsonPath("$.pesoMaioresDespesas.percentual").value(43.93));
@@ -143,6 +151,7 @@ class DashboardResourceTest {
     mvc.perform(get("/api/dashboard?" + query).header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
         .andExpect(jsonPath("$.erros[0].campo").exists());
 
     verifyNoInteractions(service);

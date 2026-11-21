@@ -1,0 +1,23 @@
+name: Protege a main
+
+# A main só recebe PR vindo da development. Este job é obrigatório
+# (regra da main no GitHub) e falha para qualquer outra branch de origem.
+on:
+  pull_request:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  origem:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confere a branch de origem do PR
+        env:
+          ORIGEM: ${{ github.head_ref }}
+        run: |
+          if [ "$ORIGEM" != "development" ]; then
+            echo "::error::PR para a main só pode vir da development (veio de '$ORIGEM')."
+            exit 1
+          fi
+          echo "Origem ok: development"

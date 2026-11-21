@@ -8,6 +8,7 @@ import br.com.poupamais.categoria.publico.dto.CategoriaResumo;
 import br.com.poupamais.categoria.service.CategoriaComQuantidade;
 import br.com.poupamais.categoria.service.CategoriaService;
 import br.com.poupamais.shared.domain.Periodo;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ConflitoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -84,7 +85,7 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
   public Categoria criar(Long idUsuario, String descricao) {
     String normalizada = normalizar(descricao);
     if (repository.existsByIdUsuarioAndDescricaoIgnoreCase(idUsuario, normalizada)) {
-      throw new ConflitoException(MSG_DUPLICADA);
+      throw new ConflitoException(CodigoErro.CATEGORIA_DUPLICADA, MSG_DUPLICADA);
     }
     return salvar(Categoria.builder().idUsuario(idUsuario).descricao(normalizada).build());
   }
@@ -95,7 +96,7 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
     Categoria categoria = buscarDoUsuario(idUsuario, id);
     String normalizada = normalizar(descricao);
     if (repository.existsByIdUsuarioAndDescricaoIgnoreCaseAndIdNot(idUsuario, normalizada, id)) {
-      throw new ConflitoException(MSG_DUPLICADA);
+      throw new ConflitoException(CodigoErro.CATEGORIA_DUPLICADA, MSG_DUPLICADA);
     }
     categoria.setDescricao(normalizada);
     return salvar(categoria);
@@ -115,7 +116,7 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
     Categoria categoria = buscarDoUsuario(idUsuario, id);
     // A FK da associativa é DEFERRABLE: só falharia no commit, por isso a checagem antes (RN002)
     if (repository.possuiLancamentos(id, idUsuario)) {
-      throw new RegraNegocioException(MSG_VINCULADA);
+      throw new RegraNegocioException(CodigoErro.CATEGORIA_VINCULADA, MSG_VINCULADA);
     }
     repository.delete(categoria);
   }
@@ -148,20 +149,23 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
       return;
     }
     if (ids.stream().anyMatch(Objects::isNull)) {
-      throw new RecursoNaoEncontradoException(MSG_NAO_ENCONTRADA);
+      throw new RecursoNaoEncontradoException(
+          CodigoErro.CATEGORIA_NAO_ENCONTRADA, MSG_NAO_ENCONTRADA);
     }
     Set<Long> unicos = new HashSet<>(ids);
     Map<Long, Categoria> encontradas =
         repository.findByIdUsuarioAndIdIn(idUsuario, unicos).stream()
             .collect(Collectors.toMap(Categoria::getId, Function.identity()));
     if (encontradas.size() != unicos.size()) {
-      throw new RecursoNaoEncontradoException(MSG_NAO_ENCONTRADA);
+      throw new RecursoNaoEncontradoException(
+          CodigoErro.CATEGORIA_NAO_ENCONTRADA, MSG_NAO_ENCONTRADA);
     }
     encontradas.values().stream()
         .filter(c -> !c.isAtiva())
         .findFirst()
         .ifPresent(c -> {
-          throw new RegraNegocioException(MSG_INATIVA.formatted(c.getDescricao()));
+          throw new RegraNegocioException(
+              CodigoErro.CATEGORIA_INATIVA, MSG_INATIVA.formatted(c.getDescricao()));
         });
   }
 
@@ -202,7 +206,9 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
   private Categoria buscarDoUsuario(Long idUsuario, Long id) {
     return repository
         .findByIdAndIdUsuario(id, idUsuario)
-        .orElseThrow(() -> new RecursoNaoEncontradoException(MSG_NAO_ENCONTRADA));
+        .orElseThrow(() ->
+            new RecursoNaoEncontradoException(
+                CodigoErro.CATEGORIA_NAO_ENCONTRADA, MSG_NAO_ENCONTRADA));
   }
 
   /** Corrida entre a checagem e o insert: o índice único do banco vira 409. */
@@ -210,17 +216,17 @@ public class CategoriaServiceImpl implements CategoriaService, CategoriaFacade {
     try {
       return repository.saveAndFlush(categoria);
     } catch (DataIntegrityViolationException e) {
-      throw new ConflitoException(MSG_DUPLICADA);
+      throw new ConflitoException(CodigoErro.CATEGORIA_DUPLICADA, MSG_DUPLICADA);
     }
   }
 
   static String normalizar(String descricao) {
     String normalizada = descricao == null ? "" : descricao.strip();
     if (normalizada.isEmpty()) {
-      throw new RegraNegocioException(MSG_OBRIGATORIA);
+      throw new RegraNegocioException(CodigoErro.CATEGORIA_INVALIDA, MSG_OBRIGATORIA);
     }
     if (normalizada.length() > TAMANHO_MAXIMO) {
-      throw new RegraNegocioException(MSG_LONGA);
+      throw new RegraNegocioException(CodigoErro.CATEGORIA_INVALIDA, MSG_LONGA);
     }
     return normalizada;
   }

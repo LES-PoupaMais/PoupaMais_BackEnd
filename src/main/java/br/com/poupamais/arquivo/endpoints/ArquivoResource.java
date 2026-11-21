@@ -7,6 +7,7 @@ import br.com.poupamais.arquivo.service.exportacao.FormatoInvalidoException;
 import br.com.poupamais.arquivo.service.importacao.ImportacaoService;
 import br.com.poupamais.arquivo.service.importacao.ResultadoImportacao;
 import br.com.poupamais.lancamento.publico.dto.FiltroLancamento;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroResponse;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.shared.security.UsuarioLogado;
@@ -17,7 +18,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -49,7 +49,7 @@ public class ArquivoResource {
   public ResultadoImportacao importar(
       @RequestParam(name = "arquivo", required = false) MultipartFile arquivo) throws IOException {
     if (arquivo == null || arquivo.isEmpty()) {
-      throw new RegraNegocioException(MSG_SEM_ARQUIVO);
+      throw new RegraNegocioException(CodigoErro.ARQUIVO_VAZIO, MSG_SEM_ARQUIVO);
     }
     return importacao.importar(UsuarioLogado.id(), arquivo.getBytes());
   }
@@ -79,8 +79,9 @@ public class ArquivoResource {
 
   @ExceptionHandler(FormatoInvalidoException.class)
   public ResponseEntity<ErroResponse> formatoInvalido(FormatoInvalidoException ex) {
-    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-        .body(new ErroResponse(400, ex.getMessage()));
+    // JSON mesmo com Accept: text/csv (quem baixa o arquivo costuma pedir só o formato do anexo)
+    return new ErroResponse(400, CodigoErro.FORMATO_EXPORTACAO_INVALIDO, ex.getMessage())
+        .comoResposta();
   }
 
   private static ResponseEntity<byte[]> anexo(String nome, String contentType, byte[] conteudo) {

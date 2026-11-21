@@ -9,12 +9,20 @@ Este repositório é **só a API**. O front (Next.js) fica em `LES-PoupaMais/Pou
 Documentação de origem (fora do repo, na pasta do workspace `../`): `../Documentação/DVP_PoupaMais_v1.md` (requisitos, UCs, RNs),
 `../Banco de Dados/poupamais_modelo_fisico.sql` (DDL oficial), `../Gestão (Trello)/` (backlog exportado).
 
-## Estado atual (18/11/2026)
+## Estado atual (20/11/2026)
 
 - **Fonte da verdade:** este `CLAUDE.md`. Os `.md` do DVP em `../Documentação/md/` são uma versão anterior; se divergirem, vale este arquivo.
 - **18/11/2026:** RN001 revista (lançamento com data completa; auditoria com hora). Ver entrega 15 do "Plano de entregas".
+- **19/11/2026:** RN006 revista (`status` no POST/PUT; restaurar volta ao status anterior). Ver entrega 19 do "Plano de entregas".
+- **20/11/2026 (contrato v1.2.0, na `development`, release ainda não feita):** toda resposta de erro tem `codigo` estável (tabela em
+  "Padrão de erro") e sai sempre em JSON, com qualquer `Accept`; cada item de `maioresDespesas` do dashboard traz `data`; erros do
+  cliente que caíam no `500` têm código próprio (`400 PARAMETRO_INVALIDO`/`PARAMETRO_AUSENTE`, `406`); saúde da API em
+  `GET /actuator/health`, usada pelo `HEALTHCHECK` do `Dockerfile`; Mailpit com versão fixa. Ver entregas 20 a 22 do "Plano de
+  entregas" (PRs #31, #32 e #33, todos integrados).
 - **Escopo atual do backend: concluído.** Não há deploy: a apresentação e a entrega mostram o sistema **rodando localmente**
-  (`docker compose up -d --build`; ver "Demonstração local" no README). Próximo passo do projeto: o front (design novo + telas).
+  (`docker compose up -d --build`, ou tudo junto pelo repositório PoupaMais_Development; ver "Como rodar" e "Demonstração local"
+  no README). O front já está integrado a esta API (contrato v1.2.0 espelhado no `CLAUDE.md` dele). Próximos passos do projeto:
+  ensaio da demo no modo "como produção" (HTTPS) e as releases (back **v1.2.0**), feitas pelo líder.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 
 ## Stack
@@ -92,7 +100,7 @@ As tabelas têm FKs reais, mas **no código as entidades se referenciam por id**
 | `shared.security.SenhaAlteradaConsulta` | `Optional<SituacaoUsuario> situacao(Long idUsuario)`; record `SituacaoUsuario(Instant senhaAlteradaEm)` (`null` = nunca trocou) | **Implementada no `usuario` (`SessaoUsuarioConsulta`, 1 consulta JPQL por requisição autenticada).** Vazio = usuário não existe mais → o filtro **recusa** o token. Também recusa `iat` < `senha_alterada_em` (comparação em segundos). Sem bean (ex.: `@WebMvcTest` de outro módulo) o filtro não checa. |
 | `SecurityConfiguration` | propriedade `poupamais.swagger-habilitado` (`SWAGGER_HABILITADO`, padrão `true`) | `false` desliga o springdoc (`springdoc.api-docs.enabled`/`swagger-ui.enabled`) e tira as rotas do Swagger da lista pública (passam a exigir token). |
 | `SecurityConfiguration` | bean `PasswordEncoder` (BCrypt) | Injete nos services; nunca instancie outro. |
-| `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401 | Mensagens em português prontas para o usuário. |
+| `shared.exception` | `RegraNegocioException` 422 · `RecursoNaoEncontradoException` 404 · `ConflitoException` 409 · `ErroAutenticacaoException` 401, todas com construtor `(CodigoErro codigo, String mensagem)` | Mensagens em português prontas para o usuário; o `codigo` (enum `CodigoErro`, obrigatório, nunca `null`) vai no campo `codigo` da resposta. Código novo: constante no `CodigoErro` + linha na tabela de "Padrão de erro" + teste (o `CodigoErroTest` reprova código sem teste). |
 | `notificacao.publico.EmailFacade` | `void enviarRecuperacaoSenha(String emailDestino, String nome, String linkRedefinicao)` | Lança `notificacao.publico.excecoes.EnvioEmailException` em falha (sem logar destinatário/link). **Quem chama (RN014) captura e responde 202 igual.** |
 | `lancamento.publico.LancamentoFacade` | `criar(idUsuario, NovoLancamento)`, `listar(idUsuario, FiltroLancamento)`, `listarAtivos(idUsuario, Collection<Periodo>)`, `listarTodos(idUsuario)`; records em `publico.dto` (`LancamentoResumo`, `FiltroLancamento`, `NovoLancamento`); enums em `publico.enums` (`TipoLancamento`, `StatusLancamento`) | Assinaturas exatamente como na seção abaixo. Detalhes em "Decisões do módulo `lancamento`". |
 | `categoria.publico.CategoriaFacade` | `buscarPorIds(idUsuario, ids)`, `listarTodas(idUsuario)`, `validarAtivasDoUsuario(idUsuario, ids)`, `buscarPorDescricao(idUsuario, descricao)` (Optional, não cria), `buscarOuCriar(idUsuario, descricao)`, `criarPadroes(idUsuario)`; record `publico.dto.CategoriaResumo(id, descricao, ativa)` | Detalhes no contrato de Categorias. `validarAtivasDoUsuario`: 404 inexistente/de outro, 422 inativa. `listarTodas`: somente leitura, ativas e inativas (ativas primeiro, depois alfabética), usada pela exportação de dados (RF016). |
@@ -130,7 +138,16 @@ Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.
   (`extract(month)`); mês fora de 1–12 ou ano fora de 2000–2100 → lista vazia (como antes). O dashboard agrupa por `Periodo.de(data)`.
 - **Auditoria com hora:** `dataCadastro` (`@PrePersist`), `dataAtualizacao` (toda edição/troca de status) e `dataExclusao` são
   `OffsetDateTime` em UTC, truncados em segundos. `dataExclusao` é gravada ao ir para DELETADO e volta a `null` ao restaurar
-  (`Lancamento.alterarStatus`).
+  (`Lancamento.alterarStatus` / `Lancamento.restaurar`).
+- **Status anterior (RN006 revista em 19/11/2026):** ao ir para DELETADO, `Lancamento.statusAnterior` (coluna `status_anterior`)
+  guarda o status que ele tinha (ATIVO/INATIVO); `Lancamento.restaurar()` volta a ele e limpa o campo. Nulo (item excluído antes
+  da V3) → volta como INATIVO. `podeIrPara` aceita DELETADO→ATIVO/INATIVO, mas `alterarStatus` recusa sair da lixeira: só o
+  `restaurar()` faz isso (o `PATCH /status` num DELETADO → `422` "Não é possível alterar o status de DELETADO para X").
+- **`status` no POST/PUT:** opcional (`LancamentoRequest.status`, `@StatusAtivoOuInativo`). POST sem ele = ATIVO; PUT sem ele
+  = mantém o atual; com o mesmo status que já tem, só os dados mudam. `DELETADO` → `400` "Dados inválidos" com
+  `erros[{campo: "status", mensagem: "Informe o status ATIVO ou INATIVO"}]` (o service também recusa com `422`, por defesa).
+  `LancamentoService.criar/editar` recebem o status à parte; o `NovoLancamento` e a `LancamentoFacade` não mudaram (a importação
+  continua criando ATIVO).
 - `LancamentoValidator.validar(NovoLancamento)` devolve os dados **normalizados**: descrição com `strip()`, valor `setScale(2, HALF_UP)`
   (arredondado ≤ 0 → 422; máximo `99999999999999.99`, limite do `numeric(16,2)`), `categoriaIds` sem nulos e sem repetidos (ordem preservada).
   Mensagens (422): "A descrição é obrigatória", "A descrição deve ter no máximo 100 caracteres", "O tipo é obrigatório (RECEITA ou DESPESA)",
@@ -165,6 +182,7 @@ Em `br.com.poupamais.lancamento.publico` (facade), `.publico.dto` (records) e `.
 - `despesasPorCategoria`: parte = valor / N truncada em centavos; a sobra vai para a categoria de **menor id**. Ordem: valor desc, empate
   por `categoriaId` asc. Despesa sem categoria (não deveria existir) entra como `categoriaId: null`, "Sem categoria", para a soma fechar.
 - `maioresDespesas`: top 5 por valor desc; **empate: menor id primeiro** (o cadastrado antes). `categorias` = nomes em ordem de id.
+  Cada item traz `data` (data do lançamento, ISO `"AAAA-MM-DD"`, como na response de lançamento; v1.2.0); ela não entra na ordenação nem no peso.
 
 ## Design patterns (onde e por quê)
 
@@ -201,7 +219,9 @@ DDL em `src/main/resources/db/migration` (Flyway): é a fonte da verdade; o Hibe
 O `V1__schema_inicial.sql` veio do DDL oficial (`../Banco de Dados/poupamais_modelo_fisico.sql`). O `V2__lancamento_data_completa.sql`
 (18/11/2026) troca `mes`/`ano` por `data date` (lançamentos antigos ficam no dia 1 do mês: `make_date(ano, mes, 1)`), troca o índice
 `lancamento_dashboard_idx` para `(id_usuario, data, status)`, passa a auditoria do lançamento para `timestamptz` (valores antigos =
-meia-noite de Brasília) e cria `data_exclusao timestamptz`.
+meia-noite de Brasília) e cria `data_exclusao timestamptz`. O `V3__lancamento_status_anterior.sql` (19/11/2026) cria
+`status_anterior varchar(20) NULL` (CHECK `ATIVO`/`INATIVO`, e só preenchido com `status = 'DELETADO'`); itens que já estavam na
+lixeira ficam com `NULL` e voltam como INATIVO.
 
 - Mudança de banco = **nova migração** `V<n>__descricao.sql`. **Nunca editar migração já aplicada**; só adicionar.
 - `spring.flyway`: schema `poupamais` criado e gerenciado pelo Flyway, histórico em `poupamais.flyway_schema_history`.
@@ -234,7 +254,7 @@ meia-noite de Brasília) e cria `data_exclusao timestamptz`.
 | RN003 | dashboard | Só lançamentos **ATIVOS** cuja data cai no mês/ano (padrão = mês atual). Saldo = Receitas − Despesas. Taxa = Despesas / Receitas × 100; se Receitas = 0 → `null` (não disponível). |
 | RN004 | lancamento / dashboard | Três status. **ATIVO**: entra no dashboard. **INATIVO**: aparece na listagem, mas não entra no dashboard. **DELETADO**: exclusão lógica (lixeira); não aparece na listagem padrão nem no dashboard, só com o filtro `status=DELETADO`. Nada é apagado fisicamente. |
 | RN005 | todos | Usuário só vê/edita/inativa/exporta/exclui **o que é dele**. |
-| RN006 | lancamento | ATIVO/INATIVO: editáveis em qualquer mês e alternam livremente. DELETADO: **não pode ser editado nem alternado**; só **restaurar**, que devolve como **INATIVO**. Transições válidas: ATIVO⇄INATIVO, ATIVO/INATIVO→DELETADO, DELETADO→INATIVO. O "Desfazer" da exclusão é feito no front (a chamada só é enviada quando o toast fecha). |
+| RN006 | lancamento | ATIVO/INATIVO: editáveis em qualquer mês e alternam livremente; o status pode ir **junto** no POST/PUT (sem PATCH depois). DELETADO: **não pode ser editado nem alternado**; só **restaurar**, que devolve ao **status que tinha antes da exclusão** (ATIVO ou INATIVO; itens excluídos antes de 19/11/2026, sem esse registro, voltam como INATIVO). Transições válidas: ATIVO⇄INATIVO, ATIVO/INATIVO→DELETADO, DELETADO→ATIVO/INATIVO (só pelo restaurar). O "Desfazer" da exclusão (revisto em 19/11/2026): o front manda o `DELETE` **na hora** e o "Desfazer" chama o `restaurar`. |
 | RN007 | arquivo | Importação parcial: salva as linhas válidas, ignora inválidas/em branco e devolve quais falharam e por quê. Nunca recusa o arquivo inteiro. |
 | RN008 | dashboard | "Receitas vs Despesas" e "Saldo Mensal": 4 meses terminando no selecionado (`Periodo.ultimos(4)`), agrupando pelo mês da data. "Maiores Despesas": top 5 despesas ativas do mês, com categorias. |
 | RN009 | dashboard | "Despesas por Categoria": só despesas ativas do mês. N categorias → valor dividido igualmente; **centavos de diferença vão para a primeira** (= menor `id_categoria`). Soma das fatias = total de despesas. |
@@ -253,7 +273,9 @@ Fora de escopo (requisitos inversos): app nativo (RNI001), integração bancári
 - O id do usuário vem **sempre do token JWT**, via `UsuarioLogado.id()`, nunca do body ou da query.
 - Todo repository de dado do usuário filtra por dono: `findByIdAndIdUsuario(...)` e Specifications sempre com `doUsuario(id)`.
   Recurso de outro usuário → **404** (não revelar que existe).
-- Rotas públicas: `POST /api/auth/cadastro`, `/login`, `/recuperar-senha`, `/redefinir-senha` e Swagger em dev. Todo o resto exige autenticação.
+- Rotas públicas: `POST /api/auth/cadastro`, `/login`, `/recuperar-senha`, `/redefinir-senha`, `GET /actuator/health` e Swagger em dev. Todo o resto exige autenticação.
+- **Actuator:** só o `health` é exposto (`management.endpoints.web.exposure.include=health`, página `/actuator` desligada), sem
+  detalhes para ninguém (`show-details`/`show-components: never`). Qualquer outro `/actuator/**` exige token e responde `404`.
 - Proteção de dados (RNF019): nunca logar senha, token ou valor financeiro; mensagens de erro sem detalhes internos.
 - RNF006: **não** existe detecção de lançamento duplicado (dados iguais são válidos). A única proteção é contra reenvio técnico, feita no front.
 - Senha: BCrypt, mínimo 6 caracteres (regra do protótipo). Nunca retornar `senha` em DTO.
@@ -273,6 +295,12 @@ Prefixo `/api`. JSON em camelCase. Header `Authorization: Bearer <token>`.
 
 **Coleções Bruno/Postman** com todos os endpoints: `doc/api/` (ver `doc/api/README.md`). **Todo endpoint novo entra nas duas
 coleções por padrão**, no mesmo PR (ver "Convenções"); o `ColecaoApiTest` reprova o build se faltar algum.
+
+**Saúde** (actuator, fora do `/api`)
+
+- `GET /actuator/health` **público** (sem token) → `200` `{"status":"UP"}` · banco fora do ar → `503` `{"status":"DOWN"}`. Sem detalhes
+  nem componentes. O e-mail não entra na conta (`management.health.mail.enabled=false`: falha de envio é tolerada, RN014). É o que o
+  `HEALTHCHECK` do `Dockerfile` consulta (`wget` do BusyBox da imagem). Não segue o `ErroResponse` (formato do actuator).
 
 **Auth / usuário** (módulo `usuario`)
 
@@ -313,7 +341,7 @@ Detalhes do `usuario` (decididos):
 - `GET /api/usuarios/me/dados` → arquivo `meus-dados-poupamais.json` (RF016, RN016; estrutura abaixo)
 - `POST /api/usuarios/me/excluir` `{senha}` → `204` (RF017) · senha errada → `422`. É POST porque DELETE com body não é confiável em proxies.
 
-Rotas públicas: `cadastro`, `login`, `recuperar-senha`, `redefinir-senha`.
+Rotas públicas: `cadastro`, `login`, `recuperar-senha`, `redefinir-senha` (e `GET /actuator/health`).
 
 Exportação de dados do titular (`GET /api/usuarios/me/dados`, decidido em `feat/exportacao-dados`):
 - `200` com `Content-Type: application/json` e `Content-Disposition: attachment; filename="meus-dados-poupamais.json"`; sem token → `401`.
@@ -397,14 +425,21 @@ no dropdown de categorias do formulário de lançamento. Por isso o `POST` devol
     de lançamento abaixo; `total` = quantos lançamentos o filtro encontra; sem resultado: `total: 0`, `totalPaginas: 0`).
   - A **exportação** (`/exportar`) e os usos internos (`LancamentoFacade.listar`, dashboard, LGPD) **não paginam**: trazem tudo.
 - `GET /api/lancamentos/{id}`
-- `POST /api/lancamentos` `{descricao, tipo, data, valor, categoriaIds: [..]}` → `201`. `data` em ISO `"AAAA-MM-DD"` (o front mostra
+- `POST /api/lancamentos` `{descricao, tipo, data, valor, categoriaIds: [..], status?}` → `201`. `status` opcional: `"ATIVO"` ou
+  `"INATIVO"` (ausente/`null` = ATIVO), gravado na mesma chamada; `"DELETADO"` → `400` "Dados inválidos" com
+  `erros[{campo: "status", mensagem: "Informe o status ATIVO ou INATIVO"}]`; valor fora do enum → `400` "Não foi possível ler os
+  dados enviados. Confira o formato." (como o `tipo`). `data` em ISO `"AAAA-MM-DD"` (o front mostra
   dd/mm/aaaa). Data ausente → `400` "A data é obrigatória"; dia que não existe ou formato errado (`"2026-02-31"`, `"05/11/2026"`) → `400`
   "Dados inválidos" com `erros[{campo: "data", mensagem: "Data inválida. Use o formato AAAA-MM-DD com um dia que exista."}]`;
   fora de 01/01/2000–31/12/2100 → `422` "A data deve estar entre 01/01/2000 e 31/12/2100".
-- `PUT /api/lancamentos/{id}` (mesmo body) → atualiza e seta `dataAtualizacao` · se DELETADO → `422`
+- `PUT /api/lancamentos/{id}` (mesmo body) → atualiza e seta `dataAtualizacao` · `status` ausente/`null` = mantém o atual;
+  `ATIVO`/`INATIVO` = troca junto; `DELETADO` → `400` (igual ao POST) · lançamento na lixeira → `422` "Lançamento excluído não pode
+  ser editado. Restaure-o antes." (mesmo com `status` no corpo)
 - `PATCH /api/lancamentos/{id}/status` `{status: "ATIVO"|"INATIVO"}` → atualiza `dataAtualizacao` · se DELETADO → `422`
-- `DELETE /api/lancamentos/{id}` → `204`; **não apaga**: muda o status para DELETADO e grava `dataExclusao`
-- `POST /api/lancamentos/{id}/restaurar` → `200` (lançamento com status INATIVO e `dataExclusao: null`) · se não estiver DELETADO → `422`
+- `DELETE /api/lancamentos/{id}` → `204`; **não apaga**: muda o status para DELETADO, grava `dataExclusao` e guarda o status que
+  tinha (ATIVO/INATIVO)
+- `POST /api/lancamentos/{id}/restaurar` → `200` (lançamento de volta ao status de antes do `DELETE` e `dataExclusao: null`; sem
+  esse registro, INATIVO) · se não estiver DELETADO → `422` "Só é possível restaurar um lançamento excluído". É o "Desfazer" do front.
 - `POST`/`PUT`/`PATCH`/`restaurar` devolvem o lançamento no formato abaixo. `categoriaIds` repetidos são aceitos e gravados uma vez;
   categoria inativa → `422`; inexistente ou de outro usuário → `404` (vem do `validarAtivasDoUsuario`).
 - `DELETE` de lançamento já DELETADO → `422`. Toda alteração (PUT, status, delete, restaurar) seta `dataAtualizacao = agora` (com hora).
@@ -455,7 +490,7 @@ Response de lançamento:
     { "mes": 5, "ano": 2026, "receitas": 0, "despesas": 0, "saldo": 0 }
   ],
   "despesasPorCategoria": [{ "categoriaId": 2, "descricao": "Moradia", "valor": 2100.0 }],
-  "maioresDespesas": [{ "id": 9, "descricao": "Aluguel", "valor": 2100.0, "categorias": ["Moradia"] }],
+  "maioresDespesas": [{ "id": 9, "descricao": "Aluguel", "data": "2026-08-05", "valor": 2100.0, "categorias": ["Moradia"] }],
   "pesoMaioresDespesas": { "valor": 2100.0, "percentual": 43.93 }
 }
 ```
@@ -464,18 +499,80 @@ Response de lançamento:
 `pesoMaioresDespesas` vem sempre: `valor` = soma das `maioresDespesas`; `percentual` = valor / `despesas` × 100 (2 casas, `HALF_UP`),
 `null` se o mês não tem despesa ativa (aí `valor` = 0, como a `taxaGasto` sem receita).
 
-**Padrão de erro** (RNF007, mensagens em português prontas para exibir):
+**Padrão de erro** (RNF007, mensagens em português prontas para exibir). Desde a **v1.2.0**, **toda** resposta de erro traz
+`codigo`: string estável em MAIÚSCULAS_COM_UNDERSCORE, para o front decidir o que fazer sem depender do texto. A `mensagem`
+continua sendo o texto pronto para exibir (os textos não mudaram); `erros[]` só vem em `VALIDACAO`.
 
 ```json
 {
   "status": 400,
+  "codigo": "VALIDACAO",
   "mensagem": "Dados inválidos",
   "erros": [{ "campo": "valor", "mensagem": "O valor deve ser maior que zero" }]
 }
 ```
 
-400 validação · 401 não autenticado · 404 não encontrado/não pertence ao usuário · 405 método não suportado · 409 duplicidade · 422 regra de negócio · 500 genérico (sem stacktrace).
+400 validação/parâmetro inválido ou ausente · 401 não autenticado · 403 acesso negado · 404 não encontrado/não pertence ao usuário · 405 método não suportado · 406 `Accept` não atendido · 409 duplicidade · 415 tipo de conteúdo não suportado · 422 regra de negócio · 500 genérico (sem stacktrace).
 Rota inexistente (com token válido) → 404 `"Recurso não encontrado"`; método HTTP não suportado → 405 `"Método não permitido para este recurso."`.
+
+Como funciona: os códigos ficam num lugar só, o enum `shared.exception.CodigoErro` (`shared` é módulo aberto, todos usam). Cada
+exceção de negócio recebe o seu no construtor; os erros genéricos têm código padrão no `GlobalExceptionHandler`; o 401 do
+`ErroAutenticacaoEntryPoint` e o 403 do `ErroAcessoNegadoHandler` (Spring Security) e o `/error` do servlet (`ErroPadraoController`,
+para o que não passa pelo MVC: falha num filtro, recusa do servidor como 413) também saem no `ErroResponse` com `codigo`.
+`ErroResponse` recusa `codigo` nulo. **Todo erro sai em `application/json`, qualquer que seja o `Accept`** (`ErroResponse.comoResposta()`
+e o `resposta(...)` do handler fixam o `Content-Type`): um erro na exportação pedida com `Accept: text/csv` ou
+`application/octet-stream` sai com o status e o `codigo` dele (antes virava 406 vazio ou 500). O `406` fica só para a rota que deu certo
+mas produz um formato que o cliente não aceita. A tabela também está no Swagger (descrição da API, gerada do enum). Nunca renomeie um código.
+
+| Código | Status | Quando acontece |
+| --- | --- | --- |
+| `VALIDACAO` | 400 | Bean Validation no corpo/parâmetros (`erros[]`), inclusive data que não existe no corpo (`"2026-02-31"`) |
+| `CORPO_INVALIDO` | 400 | Corpo ilegível: JSON quebrado, valor fora do enum (`tipo`, `status`), tipo errado |
+| `FORMATO_EXPORTACAO_INVALIDO` | 400 | `GET /lancamentos/exportar` com `formato` ausente ou diferente de `csv`/`xlsx` |
+| `PARAMETRO_INVALIDO` | 400 | Parâmetro de rota, `@RequestParam` ou header com tipo errado (`/api/lancamentos/abc`, `?ativa=talvez`): `"Parâmetro inválido: id. Confira o valor enviado."`, sem `erros[]`. Filtro que é objeto (`mes`/`ano`/`pagina` via `@ModelAttribute`, ex.: `?mes=abc`) continua em `VALIDACAO` com o erro no campo. Antes saía 500 |
+| `PARAMETRO_AUSENTE` | 400 | `@RequestParam`, part de multipart (`@RequestPart`) ou header obrigatório ausente: `"Parâmetro obrigatório ausente: formato."`. Hoje nenhuma rota tem parâmetro obrigatório (os ausentes têm código próprio, como `ARQUIVO_VAZIO`); fica de defesa. Antes saía 500 |
+| `REQUISICAO_INVALIDA` | 400 (e outros 4xx) | Requisição recusada antes do MVC (`/error` com 400 ou um 4xx sem código próprio) |
+| `NAO_AUTENTICADO` | 401 | Sem token, token inválido/expirado, sessão derrubada (troca de senha, conta excluída) |
+| `CREDENCIAIS_INVALIDAS` | 401 | Login com e-mail inexistente ou senha errada |
+| `ACESSO_NEGADO` | 403 | Spring Security negou acesso a usuário autenticado (hoje não há papéis; reservado) |
+| `NAO_ENCONTRADO` | 404 | Rota inexistente |
+| `CATEGORIA_NAO_ENCONTRADA` | 404 | Categoria inexistente ou de outro usuário (CRUD, `categoriaIds` do lançamento, filtro `categoriaId`) |
+| `LANCAMENTO_NAO_ENCONTRADO` | 404 | Lançamento inexistente ou de outro usuário |
+| `FOTO_NAO_ENCONTRADA` | 404 | `GET /usuarios/me/foto` sem foto |
+| `METODO_NAO_PERMITIDO` | 405 | Método HTTP não suportado na rota |
+| `TIPO_RESPOSTA_NAO_ACEITO` | 406 | `Accept` sem nenhum formato que a rota produz (ex.: `Accept: text/csv` num `GET` JSON). O corpo sai em JSON mesmo assim (`Content-Type: application/json` fixado, como em todo erro). Erro de outro tipo com esse `Accept` (ex.: `404`, `422`) sai com o próprio código, não `406`. Antes saía 500 |
+| `EMAIL_JA_CADASTRADO` | 409 | Cadastro com e-mail que já existe |
+| `CATEGORIA_DUPLICADA` | 409 | `POST`/`PUT` de categoria com descrição que já existe (sem diferenciar maiúsculas) |
+| `TIPO_CONTEUDO_NAO_SUPORTADO` | 415 | `Content-Type` não aceito pela rota (ex.: `text/plain` num `POST` JSON). Antes da v1.2.0 saía 500 |
+| `ARQUIVO_GRANDE_DEMAIS` | 422 (413 se o servidor recusar antes) | Upload acima de 2 MB: CSV, foto ou limite do multipart |
+| `ARQUIVO_VAZIO` | 422 | Importação sem o campo `arquivo`, arquivo vazio ou sem linhas de dados |
+| `ARQUIVO_INVALIDO` | 422 | Arquivo que não é texto UTF-8 (ou tem byte nulo) |
+| `CABECALHO_INVALIDO` | 422 | CSV sem o cabeçalho ou com colunas obrigatórias faltando |
+| `ARQUIVO_LINHAS_DEMAIS` | 422 | CSV com mais de 5.000 linhas de dados |
+| `SEM_DADOS_EXPORTACAO` | 422 | Exportação sem lançamentos no filtro |
+| `ACEITE_TERMOS_OBRIGATORIO` | 422 | Cadastro sem aceite chegando ao service (na API o DTO barra antes com `400 VALIDACAO`) |
+| `DADOS_CONTA_INVALIDOS` | 422 | Nome ou senha fora das regras chegando ao service (na API o DTO costuma barrar antes com `400`) |
+| `SENHA_ATUAL_INCORRETA` | 422 | Troca de senha com a senha atual errada |
+| `SENHA_IGUAL_A_ATUAL` | 422 | Troca de senha com a nova igual à atual |
+| `SENHA_INCORRETA` | 422 | Exclusão de conta com a senha errada |
+| `TOKEN_INVALIDO` | 422 | `redefinir-senha` com link inválido, expirado ou já usado |
+| `FOTO_TIPO_INVALIDO` | 422 | Foto que não é JPG/PNG/WEBP pelo conteúdo, ou sem o campo `foto` |
+| `CATEGORIA_INVALIDA` | 422 | Descrição de categoria vazia ou > 255 chegando ao service |
+| `CATEGORIA_INATIVA` | 422 | Categoria inativa usada em lançamento novo/editado |
+| `CATEGORIA_VINCULADA` | 422 | `DELETE` de categoria com lançamentos (inclusive DELETADO) |
+| `LANCAMENTO_INVALIDO` | 422 | RN001 no `LancamentoValidator` (ex.: data fora de 01/01/2000–31/12/2100, valor arredondado ≤ 0) |
+| `LANCAMENTO_NA_LIXEIRA` | 422 | `PUT` ou `PATCH /status` num lançamento DELETADO |
+| `LANCAMENTO_JA_EXCLUIDO` | 422 | `DELETE` de lançamento que já está na lixeira |
+| `LANCAMENTO_NAO_EXCLUIDO` | 422 | `restaurar` de lançamento que não está na lixeira |
+| `STATUS_INVALIDO` | 422 | `PATCH /status` com `DELETADO` ou sem status (no POST/PUT o DTO barra antes com `400 VALIDACAO`) |
+| `TRANSICAO_STATUS_INVALIDA` | 422 | Transição recusada pela máquina de estados (defesa: pela API, os casos acima chegam antes) |
+| `ERRO_INTERNO` | 500 | Erro inesperado (sem detalhes internos) |
+
+Exemplo (antes da v1.2.0 não havia `codigo`):
+
+```json
+{ "status": 422, "codigo": "CATEGORIA_VINCULADA", "mensagem": "Categoria vinculada a lançamentos, apenas inative" }
+```
 
 ## Formato CSV (RN012 no DVP)
 
@@ -556,12 +653,12 @@ Três níveis obrigatórios, mais a verificação de arquitetura. Guia detalhado
   Localmente: `docker compose up -d db-test` (porta 5433, nasce vazio; o Flyway cria o schema ao subir o contexto) e
   `export POUPAMAIS_TEST_DB_URL=jdbc:postgresql://localhost:5433/poupamais_test`.
 - **Cobertura (JaCoCo)**: `./mvnw verify` falha abaixo do piso do `pom.xml`: **80% de linhas e 70% de branches** no início
-  (o Previna usa 95/90; subimos o piso junto quando a cobertura subir). Excluídos: `PoupaMaisApplication` e os `dto/` (records sem lógica).
+  (subimos o piso junto quando a cobertura subir). Excluídos: `PoupaMaisApplication` e os `dto/` (records sem lógica).
 - Nomes de teste em português descrevendo o comportamento: `deveRecusarArquivoComMaisDe5000Linhas()`.
 
 ## Pipeline (CI: GitHub Actions)
 
-Arquivo: `.github/workflows/ci.yml` (mesmo desenho da pipeline do Previna, adaptado).
+Arquivo: `.github/workflows/ci.yml`.
 
 - **Quando roda:** push na `development` e na `main`, e todo Pull Request. Um push novo no mesmo PR cancela a execução anterior (`concurrency`).
 - **Permissões:** só leitura (`contents: read`).
@@ -604,11 +701,15 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 | # | Entrega | Situação | Inclui (além do contrato) |
 | --- | --- | --- | --- |
 | 9 | Deploy | ❌ fora do escopo (12/11/2026) | apresentação e entrega rodando localmente com `docker compose up -d --build` |
-| 15 | Lançamento com data completa + auditoria com hora (Fase A: RN001 revista em 18/11/2026) | ✅ na branch `feat/data-completa-lancamento`, aguardando PR | `V2__lancamento_data_completa.sql`; `data` ISO no contrato; `dataCadastro`/`dataAtualizacao`/`dataExclusao` com hora; CSV `descricao;tipo;data;valor;categorias` (dd/mm/aaaa); XLSX com célula de data; LGPD; coleções. Front: espelhar o contrato no `CLAUDE.md` do front |
-| 16 | `pesoMaioresDespesas` no dashboard (Q4) | ✅ branch `feat/peso-maiores-despesas` (também incluída na 15), aguardando PR | Soma das 5 maiores e % sobre as despesas do mês (2 casas, `HALF_UP`; `null` sem despesa) |
-| 17 | Paginação do `GET /lancamentos` (Q3) | ✅ branch `feat/paginacao-lancamentos` (sobre a 15), aguardando PR | `pagina`/`tamanho` (padrão 12, máx. 100); `{itens,pagina,tamanho,total,totalPaginas}`; exportação e Facade sem paginar. Pendência: `pagina=abc`/`mes=abc` dão 400 com mensagem do Spring em inglês |
-| 18 | `quantidadeLancamentos` em `GET /categorias?mes&ano` (Q2) | ✅ branch `feat/categoria-quantidade-lancamentos` (sobre a 17), aguardando PR | Query nativa agregada no `CategoriaRepository` (evita ciclo categoria→lancamento). Pendência: validação de `mes`/`ano` repetida em `CategoriaListagemParams` e `DashboardParams` (juntar num `PeriodoParams` em `shared`) |
-| 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ na branch `chore/fechamento-backend`, aguardando PR | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
+| 15 | Lançamento com data completa + auditoria com hora (Fase A: RN001 revista em 18/11/2026) | ✅ integrada (PR #24, release v1.1.0) | `V2__lancamento_data_completa.sql`; `data` ISO no contrato; `dataCadastro`/`dataAtualizacao`/`dataExclusao` com hora; CSV `descricao;tipo;data;valor;categorias` (dd/mm/aaaa); XLSX com célula de data; LGPD; coleções. Front: espelhar o contrato no `CLAUDE.md` do front |
+| 16 | `pesoMaioresDespesas` no dashboard (Q4) | ✅ integrada com a 15 (PR #24, release v1.1.0) | Soma das 5 maiores e % sobre as despesas do mês (2 casas, `HALF_UP`; `null` sem despesa) |
+| 17 | Paginação do `GET /lancamentos` (Q3) | ✅ integrada (PR #25, release v1.1.0) | `pagina`/`tamanho` (padrão 12, máx. 100); `{itens,pagina,tamanho,total,totalPaginas}`; exportação e Facade sem paginar. Pendência: `pagina=abc`/`mes=abc` dão 400 com mensagem do Spring em inglês |
+| 18 | `quantidadeLancamentos` em `GET /categorias?mes&ano` (Q2) | ✅ integrada (PR #26, release v1.1.0) | Query nativa agregada no `CategoriaRepository` (evita ciclo categoria→lancamento). Pendência: validação de `mes`/`ano` repetida em `CategoriaListagemParams` e `DashboardParams` (juntar num `PeriodoParams` em `shared`) |
+| 19 | `status` no POST/PUT de lançamento + restaurar ao status anterior (RN006 revista em 19/11/2026; contrato v1.2.0) | ✅ integrada na `development` (PR #29) | `status` opcional (ATIVO/INATIVO; DELETADO → 400) no `LancamentoRequest`; `V3__lancamento_status_anterior.sql`; `Lancamento.restaurar()`; o `PATCH /status` não tira mais da lixeira (antes, `INATIVO` num DELETADO restaurava); Swagger e coleções. Front: criar/editar com `status` numa chamada e "Desfazer" = `DELETE` imediato + `restaurar`; espelhar o contrato no `CLAUDE.md` do front |
+| 20 | Contrato v1.2.0 (junto da 19): `codigo` em toda resposta de erro + `data` em `maioresDespesas` | ✅ integrada na `development` (PR #31) | Enum `CodigoErro` em `shared.exception` (tabela em "Padrão de erro" e no Swagger, com `info.version` 1.2.0); exceções com código no construtor; `GlobalExceptionHandler` com códigos padrão e novos 415 (antes caía no 500) e 403; `ErroAcessoNegadoHandler`, `ErroPadraoController` (`/error`, despacho de erro liberado na segurança); `MaiorDespesa.data` (ordem e peso iguais); `CodigoErroTest` reprova código sem teste; coleções testam o `codigo` dos casos de erro. Front: espelhar o contrato no `CLAUDE.md` do front (não feito nesta branch). Decidido (20/11/2026, líder): a recusa de CORS do Spring (`403` "Invalid CORS request", texto puro) fica como está, sem `ErroResponse` nem `codigo`, porque o navegador não chama a API (BFF). Parâmetro inválido/ausente e `406`: resolvidos na entrega 21 |
+| 21 | Erros do cliente que caíam no `500 ERRO_INTERNO` (contrato v1.2.0) | ✅ integrada na `development` (PR #32) | `GlobalExceptionHandler`: `400 PARAMETRO_INVALIDO` (tipo errado em parâmetro de rota, query ou header), `400 PARAMETRO_AUSENTE` (parâmetro, part ou header obrigatório ausente) e `406 TIPO_RESPOSTA_NAO_ACEITO` (corpo em JSON com `Content-Type` fixado); tabela de códigos (aqui e no Swagger, gerada do enum); coleções com `Listar categorias com filtro inválido` (39 requisições). Front: espelhar os 3 códigos no `CLAUDE.md` do front. Pendência: os outros erros com um `Accept` que exclui JSON (ex.: `404` com `Accept: text/csv`) não conseguem escrever o `ErroResponse` e viram falha do servidor sem `codigo`; resolvida na entrega 22 |
+| 22 | Erro em JSON com qualquer `Accept` + saúde da API + Mailpit com versão fixa | ✅ integrada na `development` (PR #33) | Todo erro (`GlobalExceptionHandler`, `@ExceptionHandler` do `ArquivoResource`, `ErroPadraoController`) com `Content-Type: application/json` fixado (`ErroResponse.comoResposta()`): erro na exportação com `Accept: text/csv`/`application/octet-stream` sai com status e `codigo` próprios (antes `500`/`406` sem `codigo`). `spring-boot-starter-actuator` só com `GET /actuator/health` público, sem detalhes (`SaudeIntegracaoTest`); `HEALTHCHECK` do `Dockerfile` por HTTP (`wget` do BusyBox, sem instalar nada) no lugar do `nc -z`; coleções com a pasta `00 Saúde` (40 requisições; `ColecaoApiTest` conhece o endpoint do actuator); Mailpit `v1.33.1` no compose. Front: espelhar "Saúde" e a nota do `Accept` no `CLAUDE.md` do front |
+| 14 | Pendência (testes): cada `*IntegracaoTest` com `@DynamicPropertySource` próprio sobe um contexto Spring separado, e cada um mantém um pool Hikari de 10 conexões aberto até o fim do `verify` (8 contextos ≈ 80 das 100 do Postgres). Com o `db-test` compartilhado, duas execuções em paralelo deram `FATAL: sorry, too many clients already` (12/11/2026) | ✅ integrada (PR #14) | `src/test/resources/application.properties`: pool Hikari de 3 conexões nos testes |
 
 Ao terminar uma entrega: atualize esta tabela e a seção "APIs públicas já prontas" no mesmo PR.
 **Débito técnico:** cada dev faz só a sua entrega. O que achar fora do escopo dela não corrige: registra aqui como pendência

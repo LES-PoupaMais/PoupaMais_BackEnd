@@ -20,7 +20,7 @@ class StatusLancamentoTest {
     "INATIVO, DELETADO, true",
     "INATIVO, INATIVO, false",
     "DELETADO, INATIVO, true",
-    "DELETADO, ATIVO, false",
+    "DELETADO, ATIVO, true",
     "DELETADO, DELETADO, false"
   })
   void deveSeguirAsTransicoesDaRn006(
@@ -35,8 +35,9 @@ class StatusLancamentoTest {
   }
 
   @Test
-  void deletadoSoVoltaComoInativo() {
+  void deletadoPodeVoltarAAtivoOuInativoMasNaoADeletado() {
     assertThat(DELETADO.podeIrPara(INATIVO)).isTrue();
-    assertThat(DELETADO.podeIrPara(ATIVO)).isFalse();
+    assertThat(DELETADO.podeIrPara(ATIVO)).isTrue();
+    assertThat(DELETADO.podeIrPara(DELETADO)).isFalse();
   }
 }

@@ -1,5 +1,6 @@
 package br.com.poupamais.shared.security;
 
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -24,6 +25,7 @@ public final class UsuarioLogado {
     if (autenticacao != null && autenticacao.getPrincipal() instanceof Long id) {
       return id;
     }
-    throw new ErroAutenticacaoException("Sessão inválida ou expirada. Faça login novamente.");
+    throw new ErroAutenticacaoException(
+        CodigoErro.NAO_AUTENTICADO, "Sessão inválida ou expirada. Faça login novamente.");
   }
 }

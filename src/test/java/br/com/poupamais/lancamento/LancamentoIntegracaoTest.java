@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -22,6 +24,7 @@ import br.com.poupamais.shared.domain.Periodo;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import br.com.poupamais.shared.security.JwtService;
+import com.jayway.jsonpath.JsonPath;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -47,6 +50,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.support.TransactionTemplate;
 
 // Contra PostgreSQL real: Specifications, ordenação, associativa com id_usuario, cascata e FK
@@ -144,7 +149,8 @@ class LancamentoIntegracaoTest {
                 TipoLancamento.DESPESA,
                 LocalDate.of(2026, 9, 30),
                 new BigDecimal("30"),
-                List.of(lazer)));
+                List.of(lazer)),
+            null);
 
     assertThat(editado.categorias()).extracting(CategoriaResumo::id).containsExactly(lazer);
     assertThat(editado.data()).isEqualTo(LocalDate.of(2026, 9, 30));
@@ -281,18 +287,204 @@ class LancamentoIntegracaoTest {
   }
 
   @Test
-  void deveExcluirERestaurarComoInativo() {
+  void deveExcluirERestaurarAoStatusAnteriorLimpandoONoBanco() {
     LancamentoResumo l =
         criar(usuarioA, "x", TipoLancamento.DESPESA, LocalDate.of(2026, 8, 15), List.of(mercado));
 
     service.excluir(usuarioA, l.id());
+
+    assertThat(statusAnteriorNoBanco(l.id())).isEqualTo("ATIVO");
+
     LancamentoResumo restaurado = service.restaurar(usuarioA, l.id());
 
-    assertThat(restaurado.status()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(restaurado.status()).isEqualTo(StatusLancamento.ATIVO);
     assertThat(
             jdbc.queryForObject(
                 "select status from poupamais.lancamento where id = ?", String.class, l.id()))
-        .isEqualTo("INATIVO");
+        .isEqualTo("ATIVO");
+    assertThat(statusAnteriorNoBanco(l.id())).isNull();
+  }
+
+  // ---------- status no POST/PUT e restaurar ao status anterior (pela API) ----------
+
+  private String bearerA() {
+    return "Bearer " + jwtService.gerar(usuarioA).token();
+  }
+
+  private String corpoComStatus(String status) {
+    String campoStatus = status == null ? "" : ",\"status\":\"" + status + "\"";
+    return """
+    {"descricao":"Mercado","tipo":"DESPESA","data":"2026-08-15","valor":10,"categoriaIds":[%d]%s}
+    """
+        .formatted(mercado, campoStatus);
+  }
+
+  private ResultActions enviar(MockHttpServletRequestBuilder req, String corpo) throws Exception {
+    return mvc.perform(
+        req.header(HttpHeaders.AUTHORIZATION, bearerA())
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(corpo));
+  }
+
+  private Long criarPelaApi(String status) throws Exception {
+    String resposta =
+        enviar(post("/api/lancamentos"), corpoComStatus(status))
+            .andExpect(status().isCreated())
+            .andReturn()
+            .getResponse()
+            .getContentAsString(StandardCharsets.UTF_8);
+    return ((Number) JsonPath.read(resposta, "$.id")).longValue();
+  }
+
+  private String statusNoBanco(Long id) {
+    return jdbc.queryForObject(
+        "select status from poupamais.lancamento where id = ?", String.class, id);
+  }
+
+  @Test
+  void postSemStatusCriaAtivo() throws Exception {
+    enviar(post("/api/lancamentos"), corpoComStatus(null))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.status").value("ATIVO"));
+  }
+
+  @Test
+  void postComStatusInativoCriaInativoNumaChamadaSo() throws Exception {
+    Long id = criarPelaApi("INATIVO");
+
+    assertThat(statusNoBanco(id)).isEqualTo("INATIVO");
+    assertThat(service.buscar(usuarioA, id).dataAtualizacao()).isNull();
+    enviar(post("/api/lancamentos"), corpoComStatus("ATIVO"))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.status").value("ATIVO"));
+  }
+
+  @Test
+  void putSemStatusMantemOAtualEComStatusTroca() throws Exception {
+    Long id = criarPelaApi("INATIVO");
+
+    enviar(put("/api/lancamentos/" + id), corpoComStatus(null))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("INATIVO"));
+    enviar(put("/api/lancamentos/" + id), corpoComStatus("ATIVO"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("ATIVO"))
+        .andExpect(jsonPath("$.dataAtualizacao").isNotEmpty());
+    assertThat(statusNoBanco(id)).isEqualTo("ATIVO");
+    enviar(put("/api/lancamentos/" + id), corpoComStatus("INATIVO"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("INATIVO"));
+    assertThat(statusNoBanco(id)).isEqualTo("INATIVO");
+  }
+
+  @Test
+  void statusDeletadoNoCorpoDa400NoPostENoPutSemGravar() throws Exception {
+    Long id = criarPelaApi(null);
+    int antes = facade.listarTodos(usuarioA).size();
+
+    enviar(post("/api/lancamentos"), corpoComStatus("DELETADO"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
+        .andExpect(jsonPath("$.erros[0].campo").value("status"))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Informe o status ATIVO ou INATIVO"));
+    enviar(put("/api/lancamentos/" + id), corpoComStatus("DELETADO"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("status"));
+
+    assertThat(facade.listarTodos(usuarioA)).hasSize(antes);
+    assertThat(statusNoBanco(id)).isEqualTo("ATIVO");
+  }
+
+  @Test
+  void putDeItemNaLixeiraContinua422MesmoComStatus() throws Exception {
+    Long id = criarPelaApi(null);
+    service.excluir(usuarioA, id);
+
+    enviar(put("/api/lancamentos/" + id), corpoComStatus("ATIVO"))
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(
+            jsonPath("$.mensagem")
+                .value("Lançamento excluído não pode ser editado. Restaure-o antes."));
+    assertThat(statusNoBanco(id)).isEqualTo("DELETADO");
+  }
+
+  @Test
+  void restaurarDevolveAtivoQuemEraAtivo() throws Exception {
+    Long id = criarPelaApi("ATIVO");
+
+    mvc.perform(delete("/api/lancamentos/" + id).header(HttpHeaders.AUTHORIZATION, bearerA()))
+        .andExpect(status().isNoContent());
+    assertThat(statusNoBanco(id)).isEqualTo("DELETADO");
+    mvc.perform(
+            post("/api/lancamentos/" + id + "/restaurar")
+                .header(HttpHeaders.AUTHORIZATION, bearerA()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("ATIVO"))
+        .andExpect(jsonPath("$.dataExclusao").doesNotExist());
+    assertThat(statusNoBanco(id)).isEqualTo("ATIVO");
+    assertThat(statusAnteriorNoBanco(id)).isNull();
+  }
+
+  @Test
+  void restaurarDevolveInativoQuemEraInativo() throws Exception {
+    Long id = criarPelaApi("INATIVO");
+
+    mvc.perform(delete("/api/lancamentos/" + id).header(HttpHeaders.AUTHORIZATION, bearerA()))
+        .andExpect(status().isNoContent());
+    assertThat(statusAnteriorNoBanco(id)).isEqualTo("INATIVO");
+    mvc.perform(
+            post("/api/lancamentos/" + id + "/restaurar")
+                .header(HttpHeaders.AUTHORIZATION, bearerA()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("INATIVO"));
+    assertThat(statusNoBanco(id)).isEqualTo("INATIVO");
+  }
+
+  @Test
+  void restaurarItemDaLixeiraSemStatusAnteriorDevolveInativo() throws Exception {
+    Long id = criarPelaApi("ATIVO");
+    // Como ficaram os itens excluídos antes da V3: DELETADO sem status anterior
+    jdbc.update(
+        "update poupamais.lancamento set status = 'DELETADO', data_exclusao = now(),"
+            + " status_anterior = null where id = ?",
+        id);
+
+    mvc.perform(
+            post("/api/lancamentos/" + id + "/restaurar")
+                .header(HttpHeaders.AUTHORIZATION, bearerA()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("INATIVO"));
+    assertThat(statusNoBanco(id)).isEqualTo("INATIVO");
+  }
+
+  @Test
+  void patchNaoTiraDaLixeira() throws Exception {
+    Long id = criarPelaApi("INATIVO");
+    service.excluir(usuarioA, id);
+
+    enviar(patch("/api/lancamentos/" + id + "/status"), "{\"status\":\"INATIVO\"}")
+        .andExpect(status().isUnprocessableEntity())
+        .andExpect(
+            jsonPath("$.mensagem")
+                .value("Não é possível alterar o status de DELETADO para INATIVO"));
+    assertThat(statusNoBanco(id)).isEqualTo("DELETADO");
+  }
+
+  @Test
+  void bancoRecusaStatusAnteriorInvalidoOuForaDaLixeira() {
+    LancamentoResumo l = criarEm(LocalDate.of(2026, 8, 15));
+
+    assertThatThrownBy(() ->
+            jdbc.update(
+                "update poupamais.lancamento set status_anterior = 'ATIVO' where id = ?", l.id()))
+        .isInstanceOf(DataIntegrityViolationException.class);
+    assertThatThrownBy(() ->
+            jdbc.update(
+                "update poupamais.lancamento set status = 'DELETADO',"
+                    + " status_anterior = 'DELETADO' where id = ?",
+                l.id()))
+        .isInstanceOf(DataIntegrityViolationException.class);
   }
 
   @Test
@@ -549,6 +741,11 @@ class LancamentoIntegracaoTest {
 
   private LancamentoResumo criarEm(LocalDate data) {
     return criar(usuarioA, "x", TipoLancamento.DESPESA, data, List.of(mercado));
+  }
+
+  private String statusAnteriorNoBanco(Long id) {
+    return jdbc.queryForObject(
+        "select status_anterior from poupamais.lancamento where id = ?", String.class, id);
   }
 
   private OffsetDateTime dataExclusaoNoBanco(Long id) {

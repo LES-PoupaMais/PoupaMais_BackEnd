@@ -1,5 +1,6 @@
 package br.com.poupamais.usuario.service.impl;
 
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -59,11 +60,11 @@ public class PerfilServiceImpl implements PerfilService {
     Usuario usuario = usuario(idUsuario);
     // 422 e não 401: senha errada aqui não pode derrubar a sessão no front (RN015)
     if (senhaAtual == null || !passwordEncoder.matches(senhaAtual, usuario.getSenha())) {
-      throw new RegraNegocioException(MSG_SENHA_ATUAL);
+      throw new RegraNegocioException(CodigoErro.SENHA_ATUAL_INCORRETA, MSG_SENHA_ATUAL);
     }
     RegrasConta.validarSenha(novaSenha);
     if (novaSenha.equals(senhaAtual)) {
-      throw new RegraNegocioException(MSG_SENHA_IGUAL);
+      throw new RegraNegocioException(CodigoErro.SENHA_IGUAL_A_ATUAL, MSG_SENHA_IGUAL);
     }
     usuario.setSenha(passwordEncoder.encode(novaSenha));
     usuario.setSenhaAlteradaEm(RegrasConta.agoraEmSegundos(relogio));
@@ -77,17 +78,21 @@ public class PerfilServiceImpl implements PerfilService {
   public FotoPerfil buscarFoto(Long idUsuario) {
     return fotoRepository
         .findById(idUsuario)
-        .orElseThrow(() -> new RecursoNaoEncontradoException(MSG_FOTO_NAO_ENCONTRADA));
+        .orElseThrow(() ->
+            new RecursoNaoEncontradoException(
+                CodigoErro.FOTO_NAO_ENCONTRADA, MSG_FOTO_NAO_ENCONTRADA));
   }
 
   @Override
   @Transactional
   public void salvarFoto(Long idUsuario, byte[] conteudo) {
     if (conteudo != null && conteudo.length > TipoFoto.TAMANHO_MAXIMO) {
-      throw new RegraNegocioException(MSG_FOTO_TAMANHO);
+      throw new RegraNegocioException(CodigoErro.ARQUIVO_GRANDE_DEMAIS, MSG_FOTO_TAMANHO);
     }
     String tipo =
-        TipoFoto.detectar(conteudo).orElseThrow(() -> new RegraNegocioException(MSG_FOTO_TIPO));
+        TipoFoto.detectar(conteudo)
+            .orElseThrow(
+                () -> new RegraNegocioException(CodigoErro.FOTO_TIPO_INVALIDO, MSG_FOTO_TIPO));
     usuario(idUsuario);
     FotoPerfil foto =
         fotoRepository
@@ -111,7 +116,7 @@ public class PerfilServiceImpl implements PerfilService {
     // O filtro já recusa token de usuário excluído; isto cobre a corrida com a exclusão
     return usuarioRepository
         .findById(idUsuario)
-        .orElseThrow(() -> new ErroAutenticacaoException(MSG_SESSAO));
+        .orElseThrow(() -> new ErroAutenticacaoException(CodigoErro.NAO_AUTENTICADO, MSG_SESSAO));
   }
 
   private Perfil perfil(Usuario usuario) {

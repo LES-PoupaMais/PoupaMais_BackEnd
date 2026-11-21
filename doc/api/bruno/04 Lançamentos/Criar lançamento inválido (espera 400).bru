@@ -24,8 +24,13 @@ tests {
   test("Status esperado (400)", function () {
     expect([400]).to.include(res.status);
   });
+  if (res.status >= 400) {
+    test("Código de erro (VALIDACAO)", function () {
+      expect(res.body.codigo).to.eql("VALIDACAO");
+    });
+  }
 }
 
 docs {
-  Mostra o formato de erro: `{status, mensagem, erros: [{campo, mensagem}]}`. `2026-02-31` não existe: **400** com erro no campo `data`.
+  Mostra o formato de erro: `{status, codigo, mensagem, erros: [{campo, mensagem}]}` (`codigo` `VALIDACAO`). `2026-02-31` não existe: **400** com erro no campo `data`.
 }

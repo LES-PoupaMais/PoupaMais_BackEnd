@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.RegraNegocioException;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -51,20 +52,75 @@ class LancamentoTest {
     assertThat(lancamento.getDataExclusao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
     assertThat(lancamento.getDataAtualizacao()).isEqualTo(lancamento.getDataExclusao());
 
-    lancamento.alterarStatus(StatusLancamento.INATIVO);
+    lancamento.restaurar();
 
-    assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.ATIVO);
     assertThat(lancamento.getDataExclusao()).isNull();
+  }
+
+  @Test
+  void deveGuardarOStatusAnteriorAoIrParaALixeira() {
+    Lancamento ativo = comStatus(StatusLancamento.ATIVO);
+    Lancamento inativo = comStatus(StatusLancamento.INATIVO);
+
+    ativo.alterarStatus(StatusLancamento.DELETADO);
+    inativo.alterarStatus(StatusLancamento.DELETADO);
+
+    assertThat(ativo.getStatusAnterior()).isEqualTo(StatusLancamento.ATIVO);
+    assertThat(inativo.getStatusAnterior()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(comStatus(StatusLancamento.ATIVO).getStatusAnterior()).isNull();
+  }
+
+  @Test
+  void deveRestaurarAoStatusAnteriorELimparORegistro() {
+    Lancamento inativo = comStatus(StatusLancamento.INATIVO);
+    inativo.alterarStatus(StatusLancamento.DELETADO);
+
+    inativo.restaurar();
+
+    assertThat(inativo.getStatus()).isEqualTo(StatusLancamento.INATIVO);
+    assertThat(inativo.getStatusAnterior()).isNull();
+    assertThat(inativo.getDataExclusao()).isNull();
+    assertThat(inativo.getDataAtualizacao()).isCloseTo(OffsetDateTime.now(), PROXIMO);
+  }
+
+  @Test
+  void deveRestaurarComoInativoQuemFoiExcluidoSemStatusAnterior() {
+    Lancamento legado = comStatus(StatusLancamento.DELETADO);
+
+    legado.restaurar();
+
+    assertThat(legado.getStatus()).isEqualTo(StatusLancamento.INATIVO);
+  }
+
+  @Test
+  void naoDeveRestaurarQuemNaoEstaNaLixeira() {
+    Lancamento lancamento = comStatus(StatusLancamento.ATIVO);
+
+    assertThatThrownBy(lancamento::restaurar)
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Não é possível alterar o status de ATIVO para INATIVO")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.TRANSICAO_STATUS_INVALIDA);
+    assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.ATIVO);
+    assertThat(lancamento.getDataAtualizacao()).isNull();
   }
 
   @Test
   void deveRecusarTransicaoInvalidaSemAlterarNada() {
     Lancamento lancamento = comStatus(StatusLancamento.DELETADO);
+    lancamento.setStatusAnterior(StatusLancamento.ATIVO);
 
+    // Da lixeira só se sai pelo restaurar
     assertThatThrownBy(() -> lancamento.alterarStatus(StatusLancamento.ATIVO))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessage("Não é possível alterar o status de DELETADO para ATIVO");
+        .hasMessage("Não é possível alterar o status de DELETADO para ATIVO")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_NA_LIXEIRA);
+    assertThatThrownBy(() -> lancamento.alterarStatus(StatusLancamento.INATIVO))
+        .isInstanceOf(RegraNegocioException.class)
+        .hasMessage("Não é possível alterar o status de DELETADO para INATIVO")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.LANCAMENTO_NA_LIXEIRA);
     assertThat(lancamento.getStatus()).isEqualTo(StatusLancamento.DELETADO);
+    assertThat(lancamento.getStatusAnterior()).isEqualTo(StatusLancamento.ATIVO);
     assertThat(lancamento.getDataAtualizacao()).isNull();
   }
 
@@ -72,10 +128,12 @@ class LancamentoTest {
   void deveRecusarTransicaoParaNuloOuSemStatusAtual() {
     assertThatThrownBy(() -> comStatus(StatusLancamento.ATIVO).alterarStatus(null))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessageContaining("para vazio");
+        .hasMessageContaining("para vazio")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.TRANSICAO_STATUS_INVALIDA);
     assertThatThrownBy(() -> comStatus(null).alterarStatus(StatusLancamento.ATIVO))
         .isInstanceOf(RegraNegocioException.class)
-        .hasMessageContaining("de vazio");
+        .hasMessageContaining("de vazio")
+        .hasFieldOrPropertyWithValue("codigo", CodigoErro.TRANSICAO_STATUS_INVALIDA);
   }
 
   @Test

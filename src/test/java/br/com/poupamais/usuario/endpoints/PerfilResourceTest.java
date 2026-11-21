@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import br.com.poupamais.lancamento.publico.enums.StatusLancamento;
 import br.com.poupamais.lancamento.publico.enums.TipoLancamento;
 import br.com.poupamais.shared.config.WebConfiguration;
+import br.com.poupamais.shared.exception.CodigoErro;
 import br.com.poupamais.shared.exception.ErroAutenticacaoException;
 import br.com.poupamais.shared.exception.RecursoNaoEncontradoException;
 import br.com.poupamais.shared.exception.RegraNegocioException;
@@ -160,7 +161,9 @@ class PerfilResourceTest {
   @Test
   void senhaAtualErradaDeveDevolver422ENao401() throws Exception {
     when(service.trocarSenha(any(), any(), any()))
-        .thenThrow(new RegraNegocioException("A senha atual está incorreta"));
+        .thenThrow(
+            new RegraNegocioException(
+                CodigoErro.SENHA_ATUAL_INCORRETA, "A senha atual está incorreta"));
 
     mvc.perform(
             put("/api/usuarios/me/senha")
@@ -168,7 +171,8 @@ class PerfilResourceTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"senhaAtual\":\"errada\",\"novaSenha\":\"nova12\"}"))
         .andExpect(status().isUnprocessableEntity())
-        .andExpect(jsonPath("$.mensagem").value("A senha atual está incorreta"));
+        .andExpect(jsonPath("$.mensagem").value("A senha atual está incorreta"))
+        .andExpect(jsonPath("$.codigo").value("SENHA_ATUAL_INCORRETA"));
   }
 
   @Test
@@ -203,7 +207,9 @@ class PerfilResourceTest {
   @Test
   void semFotoDeveDevolver404() throws Exception {
     when(service.buscarFoto(USUARIO))
-        .thenThrow(new RecursoNaoEncontradoException("Foto de perfil não encontrada"));
+        .thenThrow(
+            new RecursoNaoEncontradoException(
+                CodigoErro.FOTO_NAO_ENCONTRADA, "Foto de perfil não encontrada"));
 
     mvc.perform(get("/api/usuarios/me/foto").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isNotFound());
@@ -222,7 +228,9 @@ class PerfilResourceTest {
 
   @Test
   void fotoInvalidaDeveDevolver422() throws Exception {
-    doThrow(new RegraNegocioException("A foto deve ser uma imagem JPG, PNG ou WEBP"))
+    doThrow(
+            new RegraNegocioException(
+                CodigoErro.FOTO_TIPO_INVALIDO, "A foto deve ser uma imagem JPG, PNG ou WEBP"))
         .when(service)
         .salvarFoto(eq(USUARIO), any());
 
@@ -235,7 +243,9 @@ class PerfilResourceTest {
 
   @Test
   void semCampoFotoDeveChegarNuloAoService() throws Exception {
-    doThrow(new RegraNegocioException("A foto deve ser uma imagem JPG, PNG ou WEBP"))
+    doThrow(
+            new RegraNegocioException(
+                CodigoErro.FOTO_TIPO_INVALIDO, "A foto deve ser uma imagem JPG, PNG ou WEBP"))
         .when(service)
         .salvarFoto(eq(USUARIO), isNull());
 
@@ -268,7 +278,7 @@ class PerfilResourceTest {
 
   @Test
   void excluirContaComSenhaErradaDeveDevolver422() throws Exception {
-    doThrow(new RegraNegocioException("Senha incorreta"))
+    doThrow(new RegraNegocioException(CodigoErro.SENHA_INCORRETA, "Senha incorreta"))
         .when(privacidadeService)
         .excluirConta(any(), any());
 
@@ -278,7 +288,8 @@ class PerfilResourceTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"senha\":\"errada\"}"))
         .andExpect(status().isUnprocessableEntity())
-        .andExpect(jsonPath("$.mensagem").value("Senha incorreta"));
+        .andExpect(jsonPath("$.mensagem").value("Senha incorreta"))
+        .andExpect(jsonPath("$.codigo").value("SENHA_INCORRETA"));
   }
 
   @Test
@@ -348,7 +359,8 @@ class PerfilResourceTest {
   void dadosDeUsuarioQueSumiuDeveDevolver401() throws Exception {
     when(exportacaoService.exportar(USUARIO))
         .thenThrow(
-            new ErroAutenticacaoException("Sessão inválida ou expirada. Faça login novamente."));
+            new ErroAutenticacaoException(
+                CodigoErro.NAO_AUTENTICADO, "Sessão inválida ou expirada. Faça login novamente."));
 
     mvc.perform(get("/api/usuarios/me/dados").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isUnauthorized());

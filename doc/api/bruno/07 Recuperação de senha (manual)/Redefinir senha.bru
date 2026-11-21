@@ -21,8 +21,13 @@ tests {
   test("Status esperado (204, 422)", function () {
     expect([204, 422]).to.include(res.status);
   });
+  if (res.status >= 400) {
+    test("Código de erro (TOKEN_INVALIDO)", function () {
+      expect(res.body.codigo).to.eql("TOKEN_INVALIDO");
+    });
+  }
 }
 
 docs {
-  Copie o `token` do link recebido no Mailpit para a variável `tokenRedefinicao`. Sem token válido a resposta é **422** (é o que acontece ao rodar a coleção inteira).
+  Copie o `token` do link recebido no Mailpit para a variável `tokenRedefinicao`. Sem token válido a resposta é **422** com `codigo` `TOKEN_INVALIDO` (é o que acontece ao rodar a coleção inteira).
 }
