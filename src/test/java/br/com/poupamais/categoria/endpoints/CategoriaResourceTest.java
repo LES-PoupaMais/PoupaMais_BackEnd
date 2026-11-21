@@ -129,6 +129,21 @@ class CategoriaResourceTest {
     verifyNoInteractions(service);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"mes", "ano"})
+  void deveDevolver400EmPortuguesParaMesOuAnoNaoNumerico(String campo) throws Exception {
+    mvc.perform(
+            get("/api/categorias").param(campo, "abc").header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
+        .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.erros.length()").value(1))
+        .andExpect(jsonPath("$.erros[0].campo").value(campo))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Informe um número inteiro"));
+
+    verifyNoInteractions(service);
+  }
+
   @Test
   void deveDevolverMensagemDoMesForaDaFaixa() throws Exception {
     mvc.perform(get("/api/categorias?mes=13").header(HttpHeaders.AUTHORIZATION, bearer))

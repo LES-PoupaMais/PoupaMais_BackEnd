@@ -157,6 +157,28 @@ class DashboardResourceTest {
     verifyNoInteractions(service);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"mes", "ano"})
+  void deveDevolver400EmPortuguesParaMesOuAnoNaoNumerico(String campo) throws Exception {
+    mvc.perform(get("/api/dashboard").param(campo, "abc").header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
+        .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.erros.length()").value(1))
+        .andExpect(jsonPath("$.erros[0].campo").value(campo))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Informe um número inteiro"));
+
+    verifyNoInteractions(service);
+  }
+
+  @Test
+  void deveDevolverMensagemDoAnoForaDaFaixa() throws Exception {
+    mvc.perform(get("/api/dashboard?ano=1999").header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("ano"))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("O ano deve estar entre 2000 e 2100"));
+  }
+
   @Test
   void deveDevolver401SemToken() throws Exception {
     mvc.perform(get("/api/dashboard")).andExpect(status().isUnauthorized());

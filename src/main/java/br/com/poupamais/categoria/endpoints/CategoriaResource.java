@@ -1,13 +1,12 @@
 package br.com.poupamais.categoria.endpoints;
 
-import br.com.poupamais.categoria.endpoints.dto.CategoriaListagemParams;
 import br.com.poupamais.categoria.endpoints.dto.CategoriaListagemResponse;
 import br.com.poupamais.categoria.endpoints.dto.CategoriaRequest;
 import br.com.poupamais.categoria.endpoints.dto.CategoriaResponse;
 import br.com.poupamais.categoria.endpoints.dto.CategoriaStatusRequest;
 import br.com.poupamais.categoria.endpoints.mappers.CategoriaMapper;
 import br.com.poupamais.categoria.service.CategoriaService;
-import br.com.poupamais.shared.domain.Periodo;
+import br.com.poupamais.shared.endpoints.dto.PeriodoParams;
 import br.com.poupamais.shared.security.UsuarioLogado;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -38,14 +37,9 @@ public class CategoriaResource {
   /** {@code mes}/{@code ano} só definem o mês de {@code quantidadeLancamentos} (padrão: atual). */
   @GetMapping
   public List<CategoriaListagemResponse> listar(
-      @RequestParam(required = false) Boolean ativa,
-      @Valid @ModelAttribute CategoriaListagemParams params) {
-    Periodo atual = Periodo.atual();
-    Periodo periodo =
-        new Periodo(
-            params.mes() != null ? params.mes() : atual.mes(),
-            params.ano() != null ? params.ano() : atual.ano());
-    return mapper.paraListagem(service.listarComQuantidade(UsuarioLogado.id(), ativa, periodo));
+      @RequestParam(required = false) Boolean ativa, @Valid @ModelAttribute PeriodoParams params) {
+    return mapper.paraListagem(
+        service.listarComQuantidade(UsuarioLogado.id(), ativa, params.paraPeriodo()));
   }
 
   @PostMapping
