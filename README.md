@@ -7,6 +7,9 @@ do superendividamento (ODS 1 e 8). Projeto da disciplina de Laboratório de Enge
 
 O frontend (Next.js) fica em [LES-PoupaMais/PoupaMais_FrontEnd](https://github.com/LES-PoupaMais/PoupaMais_FrontEnd).
 
+**No ar:** API em https://poupamais-backend.onrender.com (saúde em `/actuator/health`), usada pelo app
+https://poupamais-one.vercel.app. Ver [Deploy](#deploy).
+
 ## Funcionalidades
 
 - Cadastro, login, recuperação e troca de senha, perfil com foto
@@ -117,10 +120,28 @@ Todo erro sai em JSON, com qualquer `Accept`, neste formato:
 
 A tabela com todos os códigos fica no [`CLAUDE.md`](CLAUDE.md) ("Padrão de erro") e na descrição da API no Swagger.
 
+## Deploy
+
+A API roda no **Render** (Web Service com este `Dockerfile`, plano Free, região Virginia), com o banco no **Neon** (Postgres 17)
+e o e-mail pelo **Brevo**. O Render publica a branch **`main`** a cada merge (Auto-Deploy "On Commit"); as migrações do Flyway
+rodam sozinhas quando a API sobe.
+
+- **Health Check Path:** `/actuator/health`. **`PORT=8080`** precisa estar nas variáveis: sem ela, o Render procura a API na porta
+  10000 e o deploy não termina.
+- **Variáveis** (além das da tabela abaixo): `DB_URL=jdbc:postgresql://<host-do-neon>/poupamais?sslmode=require` (conexão direta,
+  sem o pooling do Neon), `SWAGGER_HABILITADO=false`, `FRONT_URL` e `CORS_ORIGINS` com a URL do front
+  (`https://poupamais-one.vercel.app`), `MAIL_HOST=smtp-relay.brevo.com` com **`MAIL_PORT=2525`** (o plano Free do Render bloqueia
+  as portas 25, 465 e 587) e `SPRING_APPLICATION_JSON={"spring":{"mail":{"properties":{"mail.smtp.auth":"true","mail.smtp.starttls.enable":"true"}}}}`
+  (liga a autenticação e o STARTTLS, que o Brevo exige).
+- O plano Free dorme depois de ~15 min sem uso e a API leva de 2 a 3 min para subir. Um job do [cron-job.org](https://cron-job.org)
+  chama `/actuator/health` a cada 10 min para mantê-la acordada.
+- Passo a passo completo (contas, front na Vercel e problemas comuns): seção "Deploy" do README do
+  [PoupaMais_Development](https://github.com/LES-PoupaMais/PoupaMais_Development#deploy).
+
 ## Demonstração local
 
-Não há deploy: a apresentação roda na máquina, com Docker. O jeito mais simples é o modo "como produção" do PoupaMais_Development
-(`npm run prod` lá, em `https://poupamais.localhost:8443`). Só com este repositório:
+Para mostrar sem internet, a apresentação também roda na máquina, com Docker. O jeito mais simples é o modo "como produção" do
+PoupaMais_Development (`npm run prod` lá, em `https://poupamais.localhost:8443`). Só com este repositório:
 
 1. `docker compose down -v && docker compose up -d --build`: banco zerado, schema criado pelo Flyway, API em http://localhost:8080.
 2. Confira a API no Swagger (http://localhost:8080/swagger-ui.html) e os e-mails no Mailpit (http://localhost:8025).
@@ -163,6 +184,8 @@ PR só é integrado (na `development` ou na `main`) com o CI verde.
 | `DB_URL`, `DB_USER`, `DB_PASSWORD` | Conexão com o PostgreSQL | `jdbc:postgresql://localhost:5432/poupamais`, `poupamais`, `poupamais` |
 | `JWT_SECRET`, `JWT_EXPIRACAO_MIN` | Assinatura e validade do token | segredo de dev, `480` |
 | `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASSWORD`, `MAIL_FROM` | SMTP | Mailpit (`localhost:1025`) |
+| `SPRING_APPLICATION_JSON` | Opções extras do Spring; em produção, liga `mail.smtp.auth` e `mail.smtp.starttls.enable` (ver Deploy) | — |
+| `PORT` | Só no Render: diz em que porta a API escuta (`8080`); o Spring não lê | — |
 | `FRONT_URL` | Monta o link de redefinição de senha | `http://localhost:3000` |
 | `CORS_ORIGINS` | Origens liberadas (Swagger/dev) | `http://localhost:3000` |
 | `SWAGGER_HABILITADO` | Liga o Swagger/OpenAPI e libera suas rotas sem token (`false` em produção) | `true` |
