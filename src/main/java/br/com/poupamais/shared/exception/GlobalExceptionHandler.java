@@ -1,14 +1,18 @@
 package br.com.poupamais.shared.exception;
 
 import java.time.LocalDate;
+import java.util.Arrays;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.util.ClassUtils;
+import org.springframework.validation.FieldError;
 import org.springframework.web.HttpMediaTypeNotAcceptableException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -38,6 +42,9 @@ public class GlobalExceptionHandler {
   static final String MSG_TIPO_RESPOSTA =
       "Formato de resposta não disponível nesta rota. Confira o Accept.";
 
+  static final String MSG_NUMERO_INTEIRO = "Informe um número inteiro";
+  static final String MSG_VALOR_INVALIDO = "Valor inválido";
+
   static final String MSG_DATA_INVALIDA =
       "Data inválida. Use o formato AAAA-MM-DD com um dia que exista.";
 
@@ -45,11 +52,44 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ErroResponse> validacao(MethodArgumentNotValidException ex) {
     List<ErroResponse.ErroCampo> erros =
         ex.getBindingResult().getFieldErrors().stream()
-            .map(erro -> new ErroResponse.ErroCampo(erro.getField(), erro.getDefaultMessage()))
+            .map(erro -> new ErroResponse.ErroCampo(erro.getField(), mensagemDoCampo(erro)))
             .toList();
     return resposta(
         HttpStatus.BAD_REQUEST,
         new ErroResponse(400, CodigoErro.VALIDACAO, "Dados inválidos", erros));
+  }
+
+  /**
+   * Mensagem do erro no campo. Falha de conversão num filtro de query ({@code @ModelAttribute},
+   * ex.: {@code ?pagina=abc}) vem do Spring em inglês e com nome de classe: troca por um texto em
+   * português, sem detalhe técnico (RNF007).
+   */
+  static String mensagemDoCampo(FieldError erro) {
+    if (!erro.isBindingFailure()) {
+      return erro.getDefaultMessage();
+    }
+    Class<?> tipo =
+        erro.contains(TypeMismatchException.class)
+            ? erro.unwrap(TypeMismatchException.class).getRequiredType()
+            : null;
+    if (tipo == null) {
+      return MSG_VALOR_INVALIDO;
+    }
+    if (Number.class.isAssignableFrom(ClassUtils.resolvePrimitiveIfNecessary(tipo))) {
+      return MSG_NUMERO_INTEIRO;
+    }
+    if (tipo.isEnum()) {
+      List<String> valores =
+          Arrays.stream(tipo.getEnumConstants()).map(c -> ((Enum<?>) c).name()).toList();
+      String opcoes =
+          valores.size() == 1
+              ? valores.getFirst()
+              : String.join(", ", valores.subList(0, valores.size() - 1))
+                  + " ou "
+                  + valores.getLast();
+      return MSG_VALOR_INVALIDO + ". Use: " + opcoes;
+    }
+    return MSG_VALOR_INVALIDO;
   }
 
   @ExceptionHandler(HttpMessageNotReadableException.class)

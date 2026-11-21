@@ -38,6 +38,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -213,11 +215,38 @@ class LancamentoResourceTest {
     verifyNoInteractions(service);
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"pagina", "tamanho", "mes", "ano", "categoriaId"})
+  void deveDevolver400EmPortuguesParaParametroNumericoNaoNumerico(String campo) throws Exception {
+    mvc.perform(autenticado(get("/api/lancamentos").param(campo, "abc")))
+        .andExpect(status().isBadRequest())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
+        .andExpect(jsonPath("$.mensagem").value("Dados inválidos"))
+        .andExpect(jsonPath("$.erros.length()").value(1))
+        .andExpect(jsonPath("$.erros[0].campo").value(campo))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Informe um número inteiro"));
+    verifyNoInteractions(service);
+  }
+
   @Test
   void deveDevolver400ParaFiltroComTipoInvalido() throws Exception {
     mvc.perform(autenticado(get("/api/lancamentos?tipo=XPTO")))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.erros[0].campo").value("tipo"));
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
+        .andExpect(jsonPath("$.erros[0].campo").value("tipo"))
+        .andExpect(
+            jsonPath("$.erros[0].mensagem").value("Valor inválido. Use: RECEITA ou DESPESA"));
+  }
+
+  @Test
+  void deveDevolver400ParaFiltroComStatusInvalido() throws Exception {
+    mvc.perform(autenticado(get("/api/lancamentos?status=XPTO")))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("status"))
+        .andExpect(
+            jsonPath("$.erros[0].mensagem")
+                .value("Valor inválido. Use: ATIVO, INATIVO ou DELETADO"));
   }
 
   @Test
