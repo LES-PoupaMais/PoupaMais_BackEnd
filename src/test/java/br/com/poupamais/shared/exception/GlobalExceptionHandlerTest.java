@@ -2,6 +2,8 @@ package br.com.poupamais.shared.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -23,6 +25,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -202,7 +205,56 @@ class GlobalExceptionHandlerTest {
     mvc.perform(get("/teste/periodo").param("mes", "xx"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
-        .andExpect(jsonPath("$.erros[0].campo").value("mes"));
+        .andExpect(jsonPath("$.erros[0].campo").value("mes"))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Informe um número inteiro"));
+  }
+
+  @Test
+  void queryDeObjetoComEnumInvalidoListaOsValoresAceitos() throws Exception {
+    mvc.perform(get("/teste/periodo").param("lado", "meio"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("lado"))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Valor inválido. Use: A, B ou C"));
+  }
+
+  @Test
+  void queryDeObjetoComEnumDeUmValorSoMostraEsseValor() throws Exception {
+    mvc.perform(get("/teste/periodo").param("unico", "outro"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Valor inválido. Use: SO"));
+  }
+
+  @Test
+  void queryDeObjetoComDataInvalidaDizSoQueOValorEInvalido() throws Exception {
+    mvc.perform(get("/teste/periodo").param("dia", "ontem"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros[0].campo").value("dia"))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Valor inválido"));
+  }
+
+  @Test
+  void queryDeObjetoComVariosErrosTrazUmPorCampoSemTextoTecnico() throws Exception {
+    mvc.perform(get("/teste/periodo").param("mes", "x").param("lado", "y"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.erros.length()").value(2))
+        .andExpect(content().string(not(containsString("Failed"))))
+        .andExpect(content().string(not(containsString("java."))));
+  }
+
+  @Test
+  void falhaDeConversaoSemTipoConhecidoDizSoQueOValorEInvalido() {
+    FieldError erro =
+        new FieldError("filtro", "mes", "x", true, null, null, "texto técnico do Spring");
+
+    assertThat(GlobalExceptionHandler.mensagemDoCampo(erro)).isEqualTo("Valor inválido");
+  }
+
+  @Test
+  void erroDeValidacaoComumMantemAMensagemDaAnotacao() {
+    FieldError erro = new FieldError("filtro", "mes", "O mês deve estar entre 1 e 12");
+
+    assertThat(GlobalExceptionHandler.mensagemDoCampo(erro))
+        .isEqualTo("O mês deve estar entre 1 e 12");
   }
 
   @Test
@@ -324,7 +376,17 @@ class GlobalExceptionHandlerTest {
 
   record Pedido(@NotBlank(message = "O nome é obrigatório") String nome) {}
 
-  record Periodo(Integer mes) {}
+  enum Lado {
+    A,
+    B,
+    C
+  }
+
+  enum Unico {
+    SO
+  }
+
+  record Periodo(Integer mes, Lado lado, Unico unico, LocalDate dia) {}
 
   @RestController
   static class ControllerDeTeste {

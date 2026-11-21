@@ -117,7 +117,8 @@ REQUISICOES = [
       query=[("ativa", "talvez", True)], status=(400,), codigo="PARAMETRO_INVALIDO",
       doc="Parâmetro de rota ou de query com tipo errado (`ativa=talvez`, `/api/lancamentos/abc`): **400** com "
           "`codigo` `PARAMETRO_INVALIDO` e a mensagem com o nome do parâmetro. Parâmetro obrigatório ausente dá "
-          "**400** `PARAMETRO_AUSENTE`."),
+          "**400** `PARAMETRO_AUSENTE`. Já `mes`/`ano` não numéricos (`?mes=abc`, também na listagem de lançamentos e "
+          "no dashboard) dão **400** `VALIDACAO` com o erro no campo: \"Informe um número inteiro\"."),
     r("03 Categorias", "Editar categoria", "PUT", "/api/categorias/{{categoriaId}}",
       json_body='{\n  "descricao": "Supermercado {{$timestamp}}"\n}'),
     r("03 Categorias", "Inativar categoria", "PATCH", "/api/categorias/{{categoriaId}}/status",

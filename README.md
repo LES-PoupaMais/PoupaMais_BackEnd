@@ -116,7 +116,9 @@ Todo erro sai em JSON, com qualquer `Accept`, neste formato:
 
 - `mensagem`: texto em português, pronto para mostrar a quem usa.
 - `codigo`: string estável em MAIÚSCULAS_COM_UNDERSCORE (ex.: `CATEGORIA_VINCULADA`, `LANCAMENTO_NA_LIXEIRA`). Nunca é renomeado.
-- `erros[]`: só na validação (`400 VALIDACAO`), um item por campo.
+- `erros[]`: só na validação (`400 VALIDACAO`), um item por campo. Filtro de query que não converte (ex.: `?pagina=abc`, `?mes=abc`)
+  também é `VALIDACAO`, com o texto em português no campo (`"Informe um número inteiro"`, ou `"Valor inválido. Use: RECEITA ou DESPESA"`
+  num enum).
 
 A tabela com todos os códigos fica no [`CLAUDE.md`](CLAUDE.md) ("Padrão de erro") e na descrição da API no Swagger.
 

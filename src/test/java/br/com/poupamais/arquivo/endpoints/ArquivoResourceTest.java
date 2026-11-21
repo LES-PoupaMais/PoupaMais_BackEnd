@@ -236,6 +236,19 @@ class ArquivoResourceTest {
   }
 
   @Test
+  void exportarComFiltroNaoNumericoDeveDevolver400EmPortugues() throws Exception {
+    mvc.perform(
+            get("/api/lancamentos/exportar")
+                .param("formato", "csv")
+                .param("ano", "abc")
+                .header(HttpHeaders.AUTHORIZATION, bearer))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.codigo").value("VALIDACAO"))
+        .andExpect(jsonPath("$.erros[0].campo").value("ano"))
+        .andExpect(jsonPath("$.erros[0].mensagem").value("Informe um número inteiro"));
+  }
+
+  @Test
   void templateDeveSerBaixadoComoAnexo() throws Exception {
     mvc.perform(get("/api/lancamentos/template-csv").header(HttpHeaders.AUTHORIZATION, bearer))
         .andExpect(status().isOk())
