@@ -19,9 +19,13 @@ Documentação de origem (fora do repo, na pasta do workspace `../`): `../Docume
   cliente que caíam no `500` têm código próprio (`400 PARAMETRO_INVALIDO`/`PARAMETRO_AUSENTE`, `406`); saúde da API em
   `GET /actuator/health`, usada pelo `HEALTHCHECK` do `Dockerfile`; Mailpit com versão fixa. Ver entregas 20 a 22 do "Plano de
   entregas" (PRs #31, #32 e #33, todos integrados).
-- **Escopo atual do backend: concluído.** Não há deploy: a apresentação e a entrega mostram o sistema **rodando localmente**
-  (`docker compose up -d --build`, ou tudo junto pelo repositório PoupaMais_Development; ver "Como rodar" e "Demonstração local"
-  no README). O front já está integrado a esta API (contrato v1.2.0 espelhado no `CLAUDE.md` dele). Próximos passos do projeto:
+- **Escopo atual do backend: concluído.** **Deploy (21/11/2026; a decisão de 12/11 de não publicar foi revista):** a API roda no
+  Render (https://poupamais-backend.onrender.com, Docker, plano Free, publica a `main` a cada merge), com o banco no Neon e o
+  e-mail pelo Brevo (porta 2525); um job do cron-job.org chama `/actuator/health` a cada 10 min para ela não dormir. Variáveis e
+  cuidados na seção "Deploy" do README. Localmente continua igual (`docker compose up -d --build`, ou tudo junto pelo
+  PoupaMais_Development; ver "Como rodar" e "Demonstração local" no README). Sem o usuário em memória do Spring Security
+  (`exclude = UserDetailsServiceAutoConfiguration` no `PoupaMaisApplication`): a API só autentica por JWT, e ele escrevia uma
+  senha gerada no log. O front já está integrado a esta API (contrato v1.2.0 espelhado no `CLAUDE.md` dele). Próximos passos do projeto:
   ensaio da demo no modo "como produção" (HTTPS) e as releases (back **v1.2.0**), feitas pelo líder.
 - Entregas: Documento/Apresentação final em **12–13/11/2026**; código no GitHub até **26/11/2026**.
 
@@ -672,7 +676,8 @@ Arquivo: `.github/workflows/ci.yml`.
 - Rodar o mesmo localmente: skill `pipeline-local`.
 - **Regra da equipe:** PR só é integrado com o CI verde. Configurar no GitHub: Settings → Branches → proteção da `development` e da `main`
   exigindo o check "Testes e cobertura" e 1 aprovação.
-- Sem deploy (decisão de 12/11/2026): não há job de imagem nem publicação; a entrega roda localmente com `docker compose`.
+- Publicação fora do CI: o Render faz o build do `Dockerfile` e publica sozinho a cada merge na `main` (21/11/2026); o CI não
+  gera imagem.
 
 ## Definição de pronto
 
@@ -700,7 +705,7 @@ Uma branch `feat/<nome>` por item, saindo da `development`; o dev para no **push
 
 | # | Entrega | Situação | Inclui (além do contrato) |
 | --- | --- | --- | --- |
-| 9 | Deploy | ❌ fora do escopo (12/11/2026) | apresentação e entrega rodando localmente com `docker compose up -d --build` |
+| 9 | Deploy | ✅ no ar (21/11/2026; antes fora do escopo, decisão de 12/11 revista) | Render (API, Docker) + Neon (Postgres) + Brevo (SMTP 2525); front na Vercel; passo a passo no README do PoupaMais_Development |
 | 15 | Lançamento com data completa + auditoria com hora (Fase A: RN001 revista em 18/11/2026) | ✅ integrada (PR #24, release v1.1.0) | `V2__lancamento_data_completa.sql`; `data` ISO no contrato; `dataCadastro`/`dataAtualizacao`/`dataExclusao` com hora; CSV `descricao;tipo;data;valor;categorias` (dd/mm/aaaa); XLSX com célula de data; LGPD; coleções. Front: espelhar o contrato no `CLAUDE.md` do front |
 | 16 | `pesoMaioresDespesas` no dashboard (Q4) | ✅ integrada com a 15 (PR #24, release v1.1.0) | Soma das 5 maiores e % sobre as despesas do mês (2 casas, `HALF_UP`; `null` sem despesa) |
 | 17 | Paginação do `GET /lancamentos` (Q3) | ✅ integrada (PR #25, release v1.1.0) | `pagina`/`tamanho` (padrão 12, máx. 100); `{itens,pagina,tamanho,total,totalPaginas}`; exportação e Facade sem paginar. Pendência: `pagina=abc`/`mes=abc` dão 400 com mensagem do Spring em inglês |
