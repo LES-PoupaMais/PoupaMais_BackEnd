@@ -3,7 +3,8 @@
  * RF010, RF012 a RF017).
  *
  * <p>API pública = só a pasta {@code publico} (e subpastas, cada uma com {@code @NamedInterface}),
- * quando existir. {@code endpoints}, {@code service} e {@code model} são internos. Ver CLAUDE.md.
+ * quando existir. {@code endpoints}, {@code service} e {@code model} são internos. Ver
+ * doc/arquitetura.md.
  */
 @ApplicationModule(displayName = "Usuário")
 package br.com.poupamais.usuario;

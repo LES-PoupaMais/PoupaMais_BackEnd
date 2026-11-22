@@ -32,3 +32,6 @@ Thumbs.db
 
 # Claude Code (configuração pessoal)
 .claude/settings.local.json
+
+# Passagem de trabalho entre agentes de IA (local, não versionar)
+HANDOFF.md

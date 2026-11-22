@@ -8,9 +8,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
 /**
- * Formato único de erro da API (contrato no CLAUDE.md). {@code codigo} vem sempre (estável, para o
- * front decidir o que fazer); {@code mensagem} é o texto pronto para exibir; {@code erros} só
- * aparece em falhas de validação, com um item por campo.
+ * Formato único de erro da API (contrato em doc/contrato-api.md). {@code codigo} vem sempre
+ * (estável, para o front decidir o que fazer); {@code mensagem} é o texto pronto para exibir;
+ * {@code erros} só aparece em falhas de validação, com um item por campo.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @Schema(description = "Resposta de erro da API (RNF007)")
