@@ -88,7 +88,7 @@ O container da API fica "saudável" (`HEALTHCHECK` do `Dockerfile`) quando o `/a
 ## Contrato da API (resumo)
 
 Prefixo `/api`, JSON em camelCase, `Authorization: Bearer <token>` (o token vem do login). A versão atual do contrato é a
-**v1.2.0**. O contrato completo, com corpos, status e regras, está no [`CLAUDE.md`](CLAUDE.md) (seção "Contrato da API"); o
+**v1.2.0**. O contrato completo, com corpos, status e regras, está em [`doc/contrato-api.md`](doc/contrato-api.md); o
 Swagger mostra o mesmo.
 
 | Grupo | Endpoints |
@@ -120,7 +120,7 @@ Todo erro sai em JSON, com qualquer `Accept`, neste formato:
   também é `VALIDACAO`, com o texto em português no campo (`"Informe um número inteiro"`, ou `"Valor inválido. Use: RECEITA ou DESPESA"`
   num enum).
 
-A tabela com todos os códigos fica no [`CLAUDE.md`](CLAUDE.md) ("Padrão de erro") e na descrição da API no Swagger.
+A tabela com todos os códigos fica em [`doc/contrato-api.md`](doc/contrato-api.md) ("Padrão de erro") e na descrição da API no Swagger.
 
 ## Deploy
 
@@ -212,7 +212,7 @@ Ninguém faz commit direto na `development` nem na `main`. A `main` contém só 
 
 - Uma branch `feat/...` por card do Trello, Conventional Commits (`feat(lancamento): ...`) e Pull Request para a `development` (ver Gitflow acima).
 - Toda funcionalidade vem com testes. Rode `./mvnw spotless:apply` e `./mvnw verify` antes do PR.
-- Regras de negócio, contrato da API e padrões de código: [`CLAUDE.md`](CLAUDE.md).
+- Guia do projeto (para pessoas e agentes de IA): [`AGENTS.md`](AGENTS.md), com o índice de `doc/` (regras de negócio, contrato da API, arquitetura e padrões de código).
 
 ## Licença
 

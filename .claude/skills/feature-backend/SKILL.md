@@ -1,15 +1,15 @@
 ---
 name: feature-backend
-description: "Use ao criar ou alterar qualquer funcionalidade da API do PoupaMais (endpoint, regra de negócio, entidade, consulta, importação/exportação, e-mail). Guia o passo a passo no monólito modular com MVC em camadas: módulo certo, DTO, mapper, service, resource, testes unitários e de integração, contrato nos dois CLAUDE.md e conferência com o DVP."
+description: "Use ao criar ou alterar qualquer funcionalidade da API do PoupaMais (endpoint, regra de negócio, entidade, consulta, importação/exportação, e-mail). Guia o passo a passo no monólito modular com MVC em camadas: módulo certo, DTO, mapper, service, resource, testes unitários e de integração, contrato em `doc/contrato-api.md` (e o resumo do front) e conferência com o DVP."
 ---
 
 # Nova funcionalidade no backend
 
-Leia antes: `CLAUDE.md` deste repo (arquitetura, patterns, contrato, regras RN001–RN016).
+Leia antes: `AGENTS.md` deste repo e, em `doc/`, `arquitetura.md` (módulos, patterns, APIs prontas), `contrato-api.md` e `regras-de-negocio.md` (RN001–RN016).
 
 ## 1. Conferir a regra
 
-- Ache o RF/RN correspondente no `CLAUDE.md` (e, se existir o workspace, em `../Documentação/DVP_PoupaMais_v1.md`).
+- Ache o RF/RN correspondente em `doc/regras-de-negocio.md` (e, se existir o workspace, em `../Documentação/DVP_PoupaMais_v1.md`).
 - Se o pedido **contradiz** uma regra documentada: pare e use a skill `mudanca-de-regra` (na raiz do workspace). Não implemente antes da decisão.
 
 ## 2. Escolher o módulo
@@ -48,7 +48,7 @@ Pasta nova dentro de `publico/`? Crie o `package-info.java` dela com `@NamedInte
 
 ## 5. Fechar
 
-- Endpoint novo ou alterado → atualize o **contrato** no `CLAUDE.md` deste repo **e** no `../PoupaMais_FrontEnd/CLAUDE.md`.
+- Endpoint novo ou alterado → atualize o **contrato** em `doc/contrato-api.md` deste repo **e** o resumo em `doc/contrato-api.md` do PoupaMais_FrontEnd.
 - Endpoint novo ou alterado → **inclua nas coleções do Postman e do Bruno** (padrão para todo endpoint): adicione a requisição
   em `REQUISICOES` de `doc/api/gerar_colecoes.py` (corpo de exemplo, status esperado, script que guarda o id se criar recurso)
   e rode `python3 doc/api/gerar_colecoes.py`. O `ColecaoApiTest` reprova o `verify` se faltar. Com a API no ar, confira com
