@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Corpo de {@code GET /api/dashboard} (contrato no CLAUDE.md). */
+/** Corpo de {@code GET /api/dashboard} (contrato em doc/contrato-api.md). */
 public record DashboardResponse(
     int mes,
     int ano,

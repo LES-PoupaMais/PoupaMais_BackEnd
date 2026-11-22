@@ -5,10 +5,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 /**
  * Código estável de cada resposta de erro (campo {@code codigo} do {@link ErroResponse}). O front
  * decide o que fazer pelo código; a {@code mensagem} continua sendo o texto pronto para exibir
- * (RNF007). Código novo entra aqui, na tabela do CLAUDE.md e em pelo menos um teste. Nunca renomeie
- * um código existente: é contrato.
+ * (RNF007). Código novo entra aqui, na tabela de doc/contrato-api.md e em pelo menos um teste.
+ * Nunca renomeie um código existente: é contrato.
  */
-@Schema(description = "Código estável do erro (MAIÚSCULAS_COM_UNDERSCORE). Tabela no CLAUDE.md.")
+@Schema(
+    description =
+        "Código estável do erro (MAIÚSCULAS_COM_UNDERSCORE). Tabela em doc/contrato-api.md.")
 public enum CodigoErro {
 
   // Genéricos -----------------------------------------------------------------------------------
